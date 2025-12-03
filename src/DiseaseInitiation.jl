@@ -79,19 +79,22 @@ end
 
 
 
-function load_dataset(name::Symbol)
+function load_dataset(name::Symbol; DX=nothing)
     if name == :baseline_amyloid_tau
-        return process_ADNI_A4_baseline()
+        return process_ADNI_A4_baseline(DX=DX)
     elseif name == :FDG_amyloid_tau_longitudinal
-        return process_ADNI_HABS_FDG_amyloid_tau_longitudinal()
+        return process_ADNI_HABS_FDG_amyloid_tau_longitudinal(DX=DX)
     else
         error("Unknown dataset: $name")
     end
 end
 
-function process_ADNI_A4_baseline()
+function process_ADNI_A4_baseline(;DX=nothing)
     # read amyloid data from CSV
     df = CSV.read("data/ADNI_A4_cross-sectional_baseline_amy_tau.csv", DataFrame)
+    if DX !== nothing
+        df = df[df.DX .== DX, :]
+    end
     amyloid_cols = filter(name -> startswith(name, "centiloid.amyloid.SUVR.Schaefer200"), names(df))
     amyloid_matrix = Matrix(df[:, amyloid_cols])
     amyloid_matrix = amyloid_matrix ./ median(amyloid_matrix)  # normalize by median
@@ -103,8 +106,20 @@ function process_ADNI_A4_baseline()
     return nothing, amyloid_matrix, tau_matrix
 end
 
-function process_ADNI_HABS_FDG_amyloid_tau_longitudinal()
+function process_ADNI_HABS_FDG_amyloid_tau_longitudinal(;DX=nothing)
     df = CSV.read("data/ADNI_HABS_amyloid_FDG_longitudinal_tau.csv", DataFrame)
+    if DX !== nothing
+        # 1. Identify subjects whose FIRST scan has DX == target DX
+        first_scan_mask = combine(groupby(df, :ID)) do subdf
+            (; ID = subdf.ID[1], keep = (subdf.DX[1] == DX))
+        end
+    
+        # 2. Extract the RIDs to keep
+        good_RIDs = first_scan_mask.ID[first_scan_mask.keep .== true]
+    
+        # 3. Filter original df to keep *all rows* for these RIDs
+        df = df[in.(df.ID, Ref(good_RIDs)), :]
+    end
     for c in names(df)
         col = df[!, c]
         if eltype(col) <: AbstractString   # Pooled or not

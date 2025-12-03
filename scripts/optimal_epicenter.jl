@@ -33,7 +33,7 @@ m = 10  # number of epicenter candidates
 # OPTIMIZE Epicenter hits
 # Amyloid:
 # WITH k and lambda we get 0.1423 best ratio
-# WIITH k,lambda=1 we get 0.141 best ratio  (this is simlar to what we got with shuffled amyloid)
+# WIITH k,lambda=1 we get 0.141 best ratio 
 # FDG
 # with k and lambda we get 0.0633 best rato
 function objective(θ)

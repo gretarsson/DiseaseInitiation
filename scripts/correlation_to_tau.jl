@@ -30,8 +30,8 @@ L = L ./ maximum(eigvals(L))  # normalize Laplacian
 T = 1.0
 
 # make FDG predictions
-init_matrix_FDG = disease_initiation_matrix(L, FDG_matrix, ones(N), 10, 1, 1, 1, T)
-init_matrix_amy = disease_initiation_matrix(L, amyloid_matrix, ones(N), 10, 1, 1, 1, T)
+init_matrix_FDG = disease_initiation_matrix(L, FDG_matrix, ones(N), 1, 1, 1, 1, T)
+init_matrix_amy = disease_initiation_matrix(L, amyloid_matrix, ones(N), 1, 1, 1, 1, T)
 
 # compute correlations to tau (FDG)
 cors = zeros(size(FDG_matrix,1))

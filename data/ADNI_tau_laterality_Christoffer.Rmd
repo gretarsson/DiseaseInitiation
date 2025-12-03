@@ -1,0 +1,123 @@
+```{r}
+
+
+library(plyr)
+library(dplyr)
+
+source('/Users/isd_neuroimaging/Library/Mobile Documents/com~apple~CloudDocs/Github/Imaging_resources/NeuRo/R/render_to_schaefer.R')
+
+```
+
+# read in data
+```{r}
+ADNI <- read.csv('/Users/isd_neuroimaging/Library/Mobile Documents/com~apple~CloudDocs/ADNI/Data_Freeze/ADNI_DF_14_02_2025/data_sheets/ADNI_DF_11_2022_14_02_2025_longitudinal_tau_PET_all_visits.csv') %>% 
+  filter(amyloid_status == "Ab.pos")
+
+```
+
+# select data
+```{r}
+
+
+ADNI_selected = 
+  ADNI %>% select(paste0("tau.SUVR.Schaefer200.ROI.idx.", 1:200))
+
+
+
+ADNI_selected$tau.LH = ADNI_selected %>% select(paste0("tau.SUVR.Schaefer200.ROI.idx.", 101:200)) %>% rowMeans() %>% unlist()
+ADNI_selected$tau.RH = ADNI_selected %>% select(paste0("tau.SUVR.Schaefer200.ROI.idx.", 1:100)) %>% rowMeans() %>% unlist()
+
+ADNI_selected$tau.LHvsRH.ratio = ADNI_selected$tau.LH - ADNI_selected$tau.RH
+
+
+hist(ADNI_selected$tau.LHvsRH.ratio)
+
+ADNI_selected$tau.LHvsRH.ratio.qtile = ntile(ADNI_selected$tau.LHvsRH.ratio, 6)
+
+boxplot(ADNI_selected$tau.LHvsRH.ratio~ADNI_selected$tau.LHvsRH.ratio.qtile)
+
+
+
+ADNI_selected.LH = 
+  ADNI_selected %>% filter(tau.LHvsRH.ratio.qtile == 1)
+
+
+ADNI_selected.RH = 
+  ADNI_selected %>% filter(tau.LHvsRH.ratio.qtile == 6) %>% 
+  select(paste0("tau.SUVR.Schaefer200.ROI.idx.", 1:200)) %>% 
+  colMeans() %>% 
+  unlist() %>% as.numeric()
+
+ADNI_selected.LH = 
+  ADNI_selected %>% filter(tau.LHvsRH.ratio.qtile == 1) %>% 
+  select(paste0("tau.SUVR.Schaefer200.ROI.idx.", 1:200)) %>% 
+  colMeans() %>% 
+  unlist() %>% as.numeric()
+
+
+ADNI_selected.sym = 
+  ADNI_selected %>% filter(tau.LHvsRH.ratio.qtile %in% c(2:5)) %>% 
+  select(paste0("tau.SUVR.Schaefer200.ROI.idx.", 1:200)) %>% 
+  colMeans() %>% 
+  unlist() %>% as.numeric()
+
+
+plot_schaefer_surface(vector_to_map = ADNI_selected.LH, atlas_number_of_ROIs = 200, atlas_number_of_networks = 17, colorscale = "viridis", zlim = range(ADNI_selected.LH))
+
+```
+
+
+
+```{r}
+
+ADNI_selected = 
+  ADNI
+
+
+ADNI_selected$tau.LH = ADNI_selected %>% select(paste0("tau.SUVR.Schaefer200.ROI.idx.", 1:100)) %>% rowMeans() %>% unlist()
+ADNI_selected$tau.RH = ADNI_selected %>% select(paste0("tau.SUVR.Schaefer200.ROI.idx.", 101:200)) %>% rowMeans() %>% unlist()
+
+ADNI_selected$tau.LHvsRH.ratio = ADNI_selected$tau.LH - ADNI_selected$tau.RH
+
+
+hist(ADNI_selected$tau.LHvsRH.ratio)
+
+ADNI_selected$tau.LHvsRH.ratio.qtile = ntile(ADNI_selected$tau.LHvsRH.ratio, 20)
+
+boxplot(ADNI_selected$tau.LHvsRH.ratio~ADNI_selected$tau.LHvsRH.ratio.qtile)
+
+
+
+ADNI_selected.LH = 
+  ADNI_selected %>% filter(tau.LHvsRH.ratio.qtile == 1)
+
+ADNI_selected.RH = 
+  ADNI_selected %>% filter(tau.LHvsRH.ratio.qtile == 20)
+
+
+ADNI_selected.RH = 
+  ADNI_selected %>% filter(tau.LHvsRH.ratio.qtile == 6) %>% 
+  select(paste0("tau.SUVR.Schaefer200.ROI.idx.", 1:200)) %>% 
+  colMeans() %>% 
+  unlist() %>% as.numeric()
+
+ADNI_selected.LH = 
+  ADNI_selected %>% filter(tau.LHvsRH.ratio.qtile == 1) %>% 
+  select(paste0("tau.SUVR.Schaefer200.ROI.idx.", 1:200)) %>% 
+  colMeans() %>% 
+  unlist() %>% as.numeric()
+
+
+ADNI_selected.sym = 
+  ADNI_selected %>% filter(tau.LHvsRH.ratio.qtile %in% c(2:5)) %>% 
+  select(paste0("tau.SUVR.Schaefer200.ROI.idx.", 1:200)) %>% 
+  colMeans() %>% 
+  unlist() %>% as.numeric()
+
+
+plot_schaefer_surface(vector_to_map = ADNI_selected.sym, atlas_number_of_ROIs = 200, atlas_number_of_networks = 17, colorscale = "viridis", zlim = range(ADNI_selected.sym))
+```
+
+
+
+

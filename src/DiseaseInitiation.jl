@@ -1,8 +1,10 @@
 module DiseaseInitiation
 
-export laplacian, disease_initiation_eqn, disease_initiation_matrix, epicenter_accuracy
+export laplacian, disease_initiation_vector, disease_initiation_matrix, epicenter_accuracy, load_dataset, drop_missing_rows
 
-using DifferentialEquations, LinearAlgebra
+using DifferentialEquations, LinearAlgebra, Dates, CSV, DataFrames
+
+
 function make_disease_initiation(L, M)
     function f!(du, u, p, t)
         ρ, ϵ, k, λ = p
@@ -26,7 +28,7 @@ function laplacian(A; kind::Symbol = :out)
     D = Diagonal(vec(d))
     return D - A
 end
-function disease_initiation_eqn(L, M, u0, ρ, ϵ, k, λ, T)
+function disease_initiation_vector(L, M, u0, ρ, ϵ, k, λ, T)
     N = length(u0)
 
     # Base linear operator X
@@ -58,7 +60,7 @@ function disease_initiation_matrix(L, M_matrix, u0, ρ, ϵ, k, λ, T)
     sol_matrix = zeros(S,N)
     for i in axes(M_matrix,1)
         M = diagm(M_matrix[i,:])
-        sol_matrix[i,:] = disease_initiation_eqn(L, M, u0, ρ, ϵ, k, λ, T)
+        sol_matrix[i,:] = disease_initiation_vector(L, M, u0, ρ, ϵ, k, λ, T)
     end
     return sol_matrix
 end
@@ -72,6 +74,108 @@ function epicenter_accuracy(pred_matrix, tau_matrix, k)
         hits[i] = length(intersect(epi_pred, highest_tau_inds))/k  
     end
     return hits
+end
+
+
+
+
+function load_dataset(name::Symbol)
+    if name == :baseline_amyloid_tau
+        return process_ADNI_A4_baseline()
+    elseif name == :FDG_amyloid_tau_longitudinal
+        return process_ADNI_HABS_FDG_amyloid_tau_longitudinal()
+    else
+        error("Unknown dataset: $name")
+    end
+end
+
+function process_ADNI_A4_baseline()
+    # read amyloid data from CSV
+    df = CSV.read("data/ADNI_A4_cross-sectional_baseline_amy_tau.csv", DataFrame)
+    amyloid_cols = filter(name -> startswith(name, "centiloid.amyloid.SUVR.Schaefer200"), names(df))
+    amyloid_matrix = Matrix(df[:, amyloid_cols])
+    amyloid_matrix = amyloid_matrix ./ median(amyloid_matrix)  # normalize by median
+    amyloid_matrix = clamp.(amyloid_matrix, 0, Inf)  # threshold at 0.0
+
+    # read tau data from CSV
+    tau_cols = filter(name -> startswith(name, "tau.SUVR.Schaefer200"), names(df))
+    tau_matrix = Matrix(df[:, tau_cols])
+    return nothing, amyloid_matrix, tau_matrix
+end
+
+function process_ADNI_HABS_FDG_amyloid_tau_longitudinal()
+    df = CSV.read("data/ADNI_HABS_amyloid_FDG_longitudinal_tau.csv", DataFrame)
+    for c in names(df)
+        col = df[!, c]
+        if eltype(col) <: AbstractString   # Pooled or not
+            # allow missing values in this column
+            df[!, c] = allowmissing(col)
+            # now we can safely replace "NA"
+            replace!(df[!, c], "NA" => missing)
+        end
+    end
+    
+    FDG_cols     = filter(c -> startswith(c, "FDG.SUVR.Schaefer200"), names(df))
+    amyloid_cols = filter(c -> startswith(c, "centiloid.amyloid.SUVR.Schaefer200"), names(df))
+    tau_cols     = filter(c -> startswith(c, "tau.SUVR.Schaefer200"), names(df))
+    # Convert ROI columns to Float64 (or missing)
+    for c in vcat(FDG_cols, amyloid_cols, tau_cols)
+        df[!, c] = passmissing(x -> parse(Float64, x)).(df[!, c])
+    end
+
+    @assert "ID" in names(df)
+    @assert "date" in names(df)
+
+    # Convert date strings to Dates
+    if df.date isa Vector{String}
+        df.date = Date.(df.date, dateformat"yyyy-mm-dd")
+    end
+
+    groups = groupby(df, :ID)
+    subjects = [g.ID[1] for g in groups]
+
+    nsub = length(groups)
+    nroi = length(FDG_cols)
+
+    FDG_matrix     = Matrix{Union{Missing,Float64}}(missing, nsub, nroi)
+    amyloid_matrix = Matrix{Union{Missing,Float64}}(missing, nsub, nroi)
+    tau_matrix     = Matrix{Union{Missing,Float64}}(missing, nsub, nroi)
+
+
+    for (i, g) in enumerate(groups)
+        sort!(g, :date)
+
+        #@info collect(g[1,FDG_cols])
+        FDG_matrix[i,:] = collect(g[1,FDG_cols])
+        amyloid_matrix[i,:] = collect(g[1,amyloid_cols])
+        tau_matrix[i,:] = collect(g[2,tau_cols])
+    end
+
+    return FDG_matrix, amyloid_matrix, tau_matrix
+end
+
+function drop_missing_rows(mats...)
+    missing_rows = []
+    # find nonmissing rows and add them to the collection of nonmissing rows
+    for mat in mats
+        if mat === nothing
+            continue
+        end
+        @info size(mat,1)
+        idx = findall(i -> all(ismissing, mat[i, :]), 1:size(mat,1))
+        append!(missing_rows, idx)
+    end
+    missing_rows = sort(unique(missing_rows))
+
+    new_mats = Vector{Any}(undef,size(mats,1))
+    for (i, mat) in enumerate(mats)
+        if mat === nothing
+            new_mats[i] = nothing
+            continue
+        end
+        new_mats[i] = mat[sort(setdiff(1:size(mat,1), missing_rows)), :]  # drop missing rows
+    end
+    return new_mats
 end
 
 end

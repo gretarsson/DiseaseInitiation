@@ -1,0 +1,34 @@
+SUMMARY STATISTICS
+Generated: 2025-12-03T15:53:57.229
+----------------------------------------
+Number of subjects: 259
+
+Empirical LR quantiles:
+  20th percentile: -0.010431454088218118
+  80th percentile: 0.014494610505467076
+
+Pearson correlations:
+  FDG vs tau:     r = 0.3417, p = 0.0306
+  Amyloid vs tau: r = -0.4341, p = 0.0
+
+Spearman correlations:
+  FDG vs tau:     ρ = 0.1344, p = 0.0306
+  Amyloid vs tau: ρ = -0.5295, p = 0.0
+
+Null-model Spearman correlations:
+  FDG (raw) vs tau:     ρ = -0.1473, p = 0.0177
+  Amyloid (raw) vs tau: ρ = 0.4843, p = 0.0
+
+
+Quantile-based classification accuracy (tercile agreement):
+  FDG prediction accuracy:     0.4942
+  Amyloid prediction accuracy: 0.3012
+  Chance baseline (25/50/25):  0.375
+
+LR ratio summary statistics:
+  Empirical tau:   mean=0.003006950893771926, std=0.03131468624405129
+  FDG-predicted:   mean=-0.00017429053217323434, std=0.003062096452158526
+  Amy-predicted:   mean=-0.0018771719939386347, std=0.02870891506914054
+
+----------------------------------------
+End of summary.

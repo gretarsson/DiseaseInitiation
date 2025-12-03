@@ -139,7 +139,6 @@ LR_ratio_null_amy = LR_ratio(amyloid_matrix)  # null model based on amyloid
 ρ_amy_null, p_amy_null = spearman_with_pvalue(LR_ratio_emp, LR_ratio_null_amy)
 
 
-
 # plot PET correlations
 # compute correlations and p-values
 test_fdg = CorrelationTest(LR_ratio_emp, LR_ratio_null_FDG)

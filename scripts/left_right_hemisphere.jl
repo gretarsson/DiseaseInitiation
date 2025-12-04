@@ -16,10 +16,10 @@ FDG_matrix, amyloid_matrix, tau_matrix = load_dataset(:FDG_amyloid_tau_longitudi
 # drop missing rows
 FDG_matrix, amyloid_matrix, tau_matrix = drop_missing_rows(FDG_matrix, amyloid_matrix, tau_matrix)
 if FDG_matrix !== nothing
-    FDG_matrix ./= median(FDG_matrix)  # normalize by median
+    FDG_matrix ./= maximum(FDG_matrix)  # normalize by median
 end
 if amyloid_matrix !== nothing
-    amyloid_matrix ./= median(amyloid_matrix)  # normalize by median
+    amyloid_matrix ./= maximum(amyloid_matrix)  # normalize by median
 end
 
 # Generate Laplacian and activity matrix

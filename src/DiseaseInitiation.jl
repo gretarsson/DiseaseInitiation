@@ -1,6 +1,7 @@
 module DiseaseInitiation
 
 export laplacian, disease_initiation_vector, disease_initiation_matrix, epicenter_accuracy, load_dataset, drop_missing_rows
+export disease_initiation_timeseries
 
 using DifferentialEquations, LinearAlgebra, Dates, CSV, DataFrames
 
@@ -28,11 +29,13 @@ function laplacian(A; kind::Symbol = :out)
     D = Diagonal(vec(d))
     return D - A
 end
-function disease_initiation_vector(L, M, u0, ρ, ϵ, k, λ, T)
+
+
+function disease_initiation_vector(L, M1, M2, u0, ρ, ϵ1, ϵ2, k, λ, T)
     N = length(u0)
 
     # Base linear operator X
-    X = -ρ * L * (I + ϵ*M) - λ * I
+    X = -ρ * L * (I + ϵ1 * M1 + ϵ2 * M2) - λ * I
 
     # Constant forcing term b = k * ones
     b = k .* ones(N)
@@ -47,20 +50,70 @@ function disease_initiation_vector(L, M, u0, ρ, ϵ, k, λ, T)
     utilde0 = vcat(u0, 1.0)
 
     # Solve via matrix exponential
-    utilde_T = exp(Xtilde * T) * utilde0
+    utilde_T = [exp(Xtilde * T) * utilde0 for T in range(Tmin, Tmax; length=tN)]
 
     # Return only physical variables (discard dummy)
     return utilde_T[1:N]
 end
 
 
-function disease_initiation_matrix(L, M_matrix, u0, ρ, ϵ, k, λ, T)
-    N = size(M_matrix,2)
-    S = size(M_matrix,1)
+function disease_initiation_timeseries(L, M1, M2, u0, ρ, ϵ1, ϵ2, k, λ, tspan, tN)
+    N = length(u0)
+    Tmin, Tmax = tspan
+
+    # Base linear operator X
+    X = -ρ * L * (I + ϵ1 * M1 + ϵ2 * M2) - λ * I
+
+    # Constant forcing term b = k * ones
+    b = k .* ones(N)
+
+    # Build augmented matrix
+    Xtilde = zeros(N+1, N+1)
+    Xtilde[1:N, 1:N] = X
+    Xtilde[1:N, N+1] = b
+    # last row remains zeros (dummy variable)
+
+    # Augmented initial condition
+    utilde0 = vcat(u0, 1.0)
+
+    # create matrix output of simulation, rows = state, columns = time
+    #Ts = range(Tmin, Tmax; length = tN)
+    #U = zeros(length(utilde0), tN)
+    #Δt = step(Ts)
+    #expX = exp(Xtilde * Δt)
+
+    #for (j, T) in enumerate(Ts)
+    #    U[:, j] = exp(Xtilde * T) * utilde0
+    #end
+
+    # MORE EFFICIENT
+    # create matrix output of simulation, rows = state, columns = time
+    Ts = range(Tmin, Tmax; length = tN)
+    U = zeros(length(utilde0), tN)
+    Δt = step(Ts)
+
+    expX = exp(Xtilde * Δt)               # transition matrix for one time step
+    u = exp(Xtilde * Tmin) * utilde0      # correct initial state
+
+    U[:,1] = u
+    for j in 2:tN
+        u = expX * u
+        U[:,j] = u
+    end
+
+    # Return only physical variables (discard dummy)
+    return U[1:N,:]
+end
+
+
+function disease_initiation_matrix(L, M1_matrix, M2_matrix, u0, ρ, ϵ1, ϵ2, k, λ, T)
+    N = size(M1_matrix,2)
+    S = size(M1_matrix,1)
     sol_matrix = zeros(S,N)
-    for i in axes(M_matrix,1)
-        M = diagm(M_matrix[i,:])
-        sol_matrix[i,:] = disease_initiation_vector(L, M, u0, ρ, ϵ, k, λ, T)
+    for i in axes(M1_matrix,1)
+        M1 = diagm(M1_matrix[i,:])
+        M2 = diagm(M2_matrix[i,:])
+        sol_matrix[i,:] = disease_initiation_vector(L, M1, M2, u0, ρ, ϵ1, ϵ2, k, λ, T)
     end
     return sol_matrix
 end
@@ -75,7 +128,6 @@ function epicenter_accuracy(pred_matrix, tau_matrix, k)
     end
     return hits
 end
-
 
 
 
@@ -97,8 +149,6 @@ function process_ADNI_A4_baseline(;DX=nothing)
     end
     amyloid_cols = filter(name -> startswith(name, "centiloid.amyloid.SUVR.Schaefer200"), names(df))
     amyloid_matrix = Matrix(df[:, amyloid_cols])
-    amyloid_matrix = amyloid_matrix ./ median(amyloid_matrix)  # normalize by median
-    amyloid_matrix = clamp.(amyloid_matrix, 0, Inf)  # threshold at 0.0
 
     # read tau data from CSV
     tau_cols = filter(name -> startswith(name, "tau.SUVR.Schaefer200"), names(df))
@@ -160,7 +210,6 @@ function process_ADNI_HABS_FDG_amyloid_tau_longitudinal(;DX=nothing)
     for (i, g) in enumerate(groups)
         sort!(g, :date)
 
-        #@info collect(g[1,FDG_cols])
         FDG_matrix[i,:] = collect(g[1,FDG_cols])
         amyloid_matrix[i,:] = collect(g[1,amyloid_cols])
         tau_matrix[i,:] = collect(g[2,tau_cols])
@@ -176,7 +225,6 @@ function drop_missing_rows(mats...)
         if mat === nothing
             continue
         end
-        @info size(mat,1)
         idx = findall(i -> all(ismissing, mat[i, :]), 1:size(mat,1))
         append!(missing_rows, idx)
     end

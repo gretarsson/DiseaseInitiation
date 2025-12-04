@@ -1,4 +1,0 @@
-Optimization summary
-Timestamp: 2025-12-03T13:51:21.016
-
-Best parameters:

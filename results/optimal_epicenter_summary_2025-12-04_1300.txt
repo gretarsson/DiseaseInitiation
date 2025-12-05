@@ -1,0 +1,15 @@
+Optimization summary
+Timestamp: 2025-12-04T13:00:43.440
+number of epicenters = 10
+Tspan = (0, 10.0)
+#timepoints = 100
+
+Best parameters:
+ϵA = 8.912742251694402
+ϵF = 19.415073266042523
+
+Best score (mean epicenter accuracy): 0.34015444015444024
+
+Null model accuracies:
+Amyloid PET null model: 0.12818532818532818
+FDG PET null model: 0.042857142857142864

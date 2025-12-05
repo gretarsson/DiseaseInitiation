@@ -2,8 +2,9 @@ module DiseaseInitiation
 
 export laplacian, disease_initiation_vector, disease_initiation_matrix, epicenter_accuracy, load_dataset, drop_missing_rows
 export disease_initiation_timeseries
+export spearman_with_pvalue
 
-using DifferentialEquations, LinearAlgebra, Dates, CSV, DataFrames
+using DifferentialEquations, LinearAlgebra, Dates, CSV, DataFrames, StatsBase, Distributions
 
 
 function make_disease_initiation(L, M)
@@ -50,7 +51,7 @@ function disease_initiation_vector(L, M1, M2, u0, ρ, ϵ1, ϵ2, k, λ, T)
     utilde0 = vcat(u0, 1.0)
 
     # Solve via matrix exponential
-    utilde_T = [exp(Xtilde * T) * utilde0 for T in range(Tmin, Tmax; length=tN)]
+    utilde_T = exp(Xtilde * T) * utilde0
 
     # Return only physical variables (discard dummy)
     return utilde_T[1:N]
@@ -240,5 +241,17 @@ function drop_missing_rows(mats...)
     end
     return new_mats
 end
+
+
+function spearman_with_pvalue(x, y)
+    ρ = corspearman(x, y)
+    n = length(x)
+    # t-statistic
+    t = ρ * sqrt((n - 2) / (1 - ρ^2))
+    # two-sided p-value
+    p = 2 * (1 - cdf(TDist(n - 2), abs(t)))
+    return ρ, p
+end
+
 
 end

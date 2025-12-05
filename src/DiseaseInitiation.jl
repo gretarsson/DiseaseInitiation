@@ -2,9 +2,9 @@ module DiseaseInitiation
 
 export laplacian, disease_initiation_vector, disease_initiation_matrix, epicenter_accuracy, load_dataset, drop_missing_rows
 export disease_initiation_timeseries
-export spearman_with_pvalue
+export spearman_with_pvalue, top1_rank_score
 export normalize_rows
-export make_objective_timesweep, make_objective_global
+export make_objective_timesweep, make_objective_global, save_local_timesweep_results
 export save_optimization_summary
 
 using DifferentialEquations, LinearAlgebra, Dates, CSV, DataFrames, StatsBase, Distributions
@@ -126,17 +126,6 @@ function disease_initiation_matrix(L, M1_matrix, M2_matrix, u0, ρ, ϵ1, ϵ2, k,
     return sol_matrix
 end
 
-# OLD MATRIX VERSION
-#function epicenter_accuracy(pred_matrix, tau_matrix, k)
-#    hits = zeros(size(pred_matrix,1))
-#    for i in axes(pred_matrix,1)
-#        epi_pred = sortperm(pred_matrix[i,:], rev=true)[1:k]
-#        highest_tau_inds = sortperm(tau_matrix[i,:], rev=true)[1:k]
-#        hits[i] = length(intersect(epi_pred, highest_tau_inds))/k  
-#    end
-#    return hits
-#end
-# NEW VECTOR VERSION
 function epicenter_accuracy(prediction, observation, k)
     epi_pred = sortperm(prediction, rev=true)[1:k]
     obs_inds = sortperm(observation, rev=true)[1:k]
@@ -248,7 +237,7 @@ function process_ADNI_HABS_FDG_amyloid_tau_longitudinal(;DX=nothing, centiloid_t
         tau_matrix[i,:] = collect(g[2,tau_cols])
     end
 
-    return FDG_matrix, amyloid_matrix, tau_matrix
+    return FDG_matrix, amyloid_matrix, tau_matrix, subjects
 end
 
 function drop_missing_rows(mats...)
@@ -262,6 +251,7 @@ function drop_missing_rows(mats...)
         append!(missing_rows, idx)
     end
     missing_rows = sort(unique(missing_rows))
+    nonmissing_rows = nothing
 
     new_mats = Vector{Union{Nothing, Matrix{Float64}}}(undef,size(mats,1))
     for (i, mat) in enumerate(mats)
@@ -269,9 +259,10 @@ function drop_missing_rows(mats...)
             new_mats[i] = nothing
             continue
         end
-        new_mats[i] = mat[sort(setdiff(1:size(mat,1), missing_rows)), :]  # drop missing rows
+        nonmissing_rows = sort(setdiff(1:size(mat,1), missing_rows))
+        new_mats[i] = mat[nonmissing_rows, :]  # drop missing rows
     end
-    return new_mats
+    return (new_mats..., nonmissing_rows)
 end
 
 
@@ -403,5 +394,47 @@ function make_objective_global(metric, L, amyloid_matrix, FDG_matrix,
     return objective
 end
 
+"""
+    top1_rank_score(pred::AbstractVector, obs::AbstractVector) -> Float64
+
+Score in [1/N, 1], where N = length(pred).
+1.0 if argmax(pred) is also argmax(obs), decreasing as its rank in obs worsens.
+"""
+function top1_rank_score(pred::AbstractVector, obs::AbstractVector)
+    @assert length(pred) == length(obs)
+    N = length(pred)
+
+    # index of highest predicted value
+    _, idx_pred = findmax(pred)
+
+    # sort observed in descending order, get permutation
+    order = sortperm(obs; rev = true)          # order[k] = index of k-th largest obs
+
+    # inverse permutation: rank[idx] = rank (1 = best)
+    ranks = invperm(order)
+
+    rank_pred = ranks[idx_pred]                # 1..N
+    return (N - rank_pred + 1) / N
+end
+
+
+
+function save_local_timesweep_results(subject_fits, file_csv::String)
+    S = length(subject_fits)
+
+    df = DataFrame(
+        subject = [sf.ID for sf in subject_fits],
+        epsilon_A = [sf.best_params[1] for sf in subject_fits],
+        epsilon_F = [sf.best_params[2] for sf in subject_fits],
+        best_score = [sf.best_score for sf in subject_fits],
+        amyloid_score = [sf.amyloid_score for sf in subject_fits],
+        FDG_score = [sf.FDG_score for sf in subject_fits],
+    )
+
+    CSV.write(file_csv, df)
+    println("Saved per-subject local timesweep results to\n → $file_csv")
+
+    return df, file_csv
+end
 
 end

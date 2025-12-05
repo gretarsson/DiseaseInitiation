@@ -7,7 +7,7 @@ using BlackBoxOptim
 using StatsBase; corspearman
 
 # blackbox settings
-maxtime = 30  # seconds of maximum runtime
+maxtime = 300  # seconds of maximum runtime
 tracemode = :compact  # :compact, :verbose, :silent. Output of optimization process
 
 # read adjacency matrix from CSV
@@ -17,7 +17,7 @@ N = size(W,1)
 # load data
 println("\nloading dataset...")
 FDG_matrix, amyloid_matrix, tau_matrix = nothing, nothing, nothing
-FDG_matrix, amyloid_matrix, tau_matrix, subject_IDs = load_dataset(:FDG_amyloid_tau_longitudinal; centiloid_threshold=20)
+FDG_matrix, amyloid_matrix, tau_matrix, subject_IDs = load_dataset(:FDG_amyloid_tau_longitudinal; centiloid_threshold=nothing)
 println("...using $(size(FDG_matrix,1)) subjects.\n")
 
 # drop missing rows and normalize
@@ -49,7 +49,6 @@ amy_pet_model = [metric(amyloid_matrix[i,:], tau_matrix[i,:]) for i in axes(amyl
 FDG_pet_model = [metric(FDG_matrix[i,:], tau_matrix[i,:]) for i in axes(FDG_matrix,1)]
 println("Mean empirical amyloid PET model score: $(mean(amy_pet_model))")
 println("Mean empirical FDG PET model score: $(mean(FDG_pet_model))")
-
 
 # ================================
 # RUN FIRST OPTIMIZATION (global eA, eF, local rho)

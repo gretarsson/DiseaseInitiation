@@ -3,6 +3,9 @@ module DiseaseInitiation
 export laplacian, disease_initiation_vector, disease_initiation_matrix, epicenter_accuracy, load_dataset, drop_missing_rows
 export disease_initiation_timeseries
 export spearman_with_pvalue
+export normalize_rows
+export make_objective_timesweep, make_objective_global
+export save_optimization_summary
 
 using DifferentialEquations, LinearAlgebra, Dates, CSV, DataFrames, StatsBase, Distributions
 
@@ -15,7 +18,7 @@ function make_disease_initiation(L, M)
     return f!
 end
 
-function laplacian(A; kind::Symbol = :out)
+function laplacian(A; kind::Symbol = :out, normalize::Bool = false)
     size(A,1) == size(A,2) ||
         throw(ArgumentError("Adjacency matrix must be square"))
 
@@ -28,7 +31,11 @@ function laplacian(A; kind::Symbol = :out)
     end
 
     D = Diagonal(vec(d))
-    return D - A
+    L = D - A
+    if normalize
+        L = L ./ maximum(eigvals(L))
+    end
+    return L
 end
 
 
@@ -119,24 +126,31 @@ function disease_initiation_matrix(L, M1_matrix, M2_matrix, u0, ρ, ϵ1, ϵ2, k,
     return sol_matrix
 end
 
-
-function epicenter_accuracy(pred_matrix, tau_matrix, k)
-    hits = zeros(size(pred_matrix,1))
-    for i in axes(pred_matrix,1)
-        epi_pred = sortperm(pred_matrix[i,:], rev=true)[1:k]
-        highest_tau_inds = sortperm(tau_matrix[i,:], rev=true)[1:k]
-        hits[i] = length(intersect(epi_pred, highest_tau_inds))/k  
-    end
-    return hits
+# OLD MATRIX VERSION
+#function epicenter_accuracy(pred_matrix, tau_matrix, k)
+#    hits = zeros(size(pred_matrix,1))
+#    for i in axes(pred_matrix,1)
+#        epi_pred = sortperm(pred_matrix[i,:], rev=true)[1:k]
+#        highest_tau_inds = sortperm(tau_matrix[i,:], rev=true)[1:k]
+#        hits[i] = length(intersect(epi_pred, highest_tau_inds))/k  
+#    end
+#    return hits
+#end
+# NEW VECTOR VERSION
+function epicenter_accuracy(prediction, observation, k)
+    epi_pred = sortperm(prediction, rev=true)[1:k]
+    obs_inds = sortperm(observation, rev=true)[1:k]
+    hit =  length(intersect(epi_pred, obs_inds))/k  
+    return hit
 end
 
 
 
-function load_dataset(name::Symbol; DX=nothing)
+function load_dataset(name::Symbol; DX=nothing, centiloid_threshold=nothing)
     if name == :baseline_amyloid_tau
         return process_ADNI_A4_baseline(DX=DX)
     elseif name == :FDG_amyloid_tau_longitudinal
-        return process_ADNI_HABS_FDG_amyloid_tau_longitudinal(DX=DX)
+        return process_ADNI_HABS_FDG_amyloid_tau_longitudinal(DX=DX, centiloid_threshold=centiloid_threshold)
     else
         error("Unknown dataset: $name")
     end
@@ -157,7 +171,7 @@ function process_ADNI_A4_baseline(;DX=nothing)
     return nothing, amyloid_matrix, tau_matrix
 end
 
-function process_ADNI_HABS_FDG_amyloid_tau_longitudinal(;DX=nothing)
+function process_ADNI_HABS_FDG_amyloid_tau_longitudinal(;DX=nothing, centiloid_threshold=nothing)
     df = CSV.read("data/ADNI_HABS_amyloid_FDG_longitudinal_tau.csv", DataFrame)
     if DX !== nothing
         # 1. Identify subjects whose FIRST scan has DX == target DX
@@ -171,6 +185,7 @@ function process_ADNI_HABS_FDG_amyloid_tau_longitudinal(;DX=nothing)
         # 3. Filter original df to keep *all rows* for these RIDs
         df = df[in.(df.ID, Ref(good_RIDs)), :]
     end
+
     for c in names(df)
         col = df[!, c]
         if eltype(col) <: AbstractString   # Pooled or not
@@ -179,6 +194,23 @@ function process_ADNI_HABS_FDG_amyloid_tau_longitudinal(;DX=nothing)
             # now we can safely replace "NA"
             replace!(df[!, c], "NA" => missing)
         end
+    end
+
+    # Convert centiloid column to Float64, treating missing as +Inf so they don't pass the threshold
+    if "centiloid" in names(df)
+        df.centiloid = map(x -> x === missing ? Inf : parse(Float64, x), df.centiloid)
+    end
+    if centiloid_threshold !== nothing
+        # 1. Identify subjects whose FIRST scan has centiloid < threshold
+        first_scan_mask = combine(groupby(df, :ID)) do subdf
+            (; ID = subdf.ID[1], keep = (subdf.centiloid[1] < centiloid_threshold))
+        end
+    
+        # 2. Extract subject IDs to keep
+        good_RIDs = first_scan_mask.ID[first_scan_mask.keep]
+    
+        # 3. Filter original df to keep *all scans* for these subjects
+        df = df[in.(df.ID, Ref(good_RIDs)), :]
     end
     
     FDG_cols     = filter(c -> startswith(c, "FDG.SUVR.Schaefer200"), names(df))
@@ -231,7 +263,7 @@ function drop_missing_rows(mats...)
     end
     missing_rows = sort(unique(missing_rows))
 
-    new_mats = Vector{Any}(undef,size(mats,1))
+    new_mats = Vector{Union{Nothing, Matrix{Float64}}}(undef,size(mats,1))
     for (i, mat) in enumerate(mats)
         if mat === nothing
             new_mats[i] = nothing
@@ -251,6 +283,124 @@ function spearman_with_pvalue(x, y)
     # two-sided p-value
     p = 2 * (1 - cdf(TDist(n - 2), abs(t)))
     return ρ, p
+end
+
+# ---------------------------------------------------------
+# NORMALIZE ROWS OF PET MATRICES TO [0,1]
+# ---------------------------------------------------------
+function normalize_rows(M)
+    if M === nothing
+        return M
+    end
+    for i in axes(M,1)
+        row = M[i, :]
+        M[i, :] = (row .- minimum(row)) ./ (maximum(row) - minimum(row))
+    end
+    return M
+end
+
+# ================================
+# HELPER: Time-sweep metric for one subject
+# ================================
+function subject_timesweep_metric(metric, init_timeseries, tau_row)
+    Tn = size(init_timeseries, 2)
+    vals = zeros(Tn)
+    for j in 1:Tn
+        pred = init_timeseries[:, j]
+        targ = tau_row
+        vals[j] = metric(pred, targ)
+    end
+    return maximum(vals[2:end])  # exclude t=0 (variance is zero there for simulations with homogeneous initial conditions)
+end
+
+
+# ================================
+# HELPER: Build first objective (time sweep per subject)
+# ================================
+function make_objective_timesweep(metric, L, amyloid_matrix, FDG_matrix,
+                                  tau_matrix, tspan, Tn)
+    S = size(tau_matrix, 1)
+    N = size(amyloid_matrix, 2)
+    function objective(θ)
+        ϵA, ϵF = θ
+        scores = zeros(S)
+        for i in 1:S
+            init_timeseries = disease_initiation_timeseries(
+                L,
+                diagm(amyloid_matrix[i, :]),
+                diagm(FDG_matrix[i, :]),
+                ones(N),
+                1, ϵA, ϵF, 0, 0,
+                tspan,
+                Tn
+            )
+            scores[i] = subject_timesweep_metric(
+                metric, init_timeseries, tau_matrix[i, :]
+            )
+        end
+        return -mean(scores)
+    end
+    return objective
+end
+
+function save_optimization_summary(
+    filename::String;
+    res,
+    best_params,
+    best_score,
+    tspan,
+    Tn
+)
+    open(filename, "w") do io
+        println(io, "Optimization summary")
+        println(io, "Timestamp: ", Dates.now())
+        println(io, "Tspan = $(tspan)")
+        println(io, "#timepoints = $(Tn)")
+
+        println(io, "\nBest parameters:")
+        for (i, p) in enumerate(best_params)
+            println(io, "param[$i] = $(p)")
+        end
+
+        println(io, "\nBest score (mean metric): ", best_score)
+
+        println(io, "\nBlackBoxOptim summary:\n")
+        println(io, res)
+    end
+end
+
+
+# ================================
+# HELPER: Objective for single-time global model
+# ================================
+function make_objective_global(metric, L, amyloid_matrix, FDG_matrix,
+                               tau_matrix, T)
+    S = size(tau_matrix, 1)
+    N = size(amyloid_matrix, 2)
+
+    function objective(θ)
+        ρ, ϵA, ϵF = θ
+
+        init_matrix = disease_initiation_matrix(
+            L,
+            amyloid_matrix,
+            FDG_matrix,
+            ones(N),
+            ρ, ϵA, ϵF, 0, 0,
+            T
+        )
+
+        # SLOW VERSION
+        #scores = [metric(init_matrix[i,:], tau_matrix[i,:]) for i in 1:S]   
+        # FASTER
+        scores = Vector{Float64}(undef, S)
+        for i in 1:S
+            @inbounds scores[i] = metric(view(init_matrix, i, :), view(tau_matrix, i, :))
+        end
+        return -mean(scores)
+    end
+
+    return objective
 end
 
 

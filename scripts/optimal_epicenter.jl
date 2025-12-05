@@ -4,232 +4,96 @@ using DiseaseInitiation
 Random.seed!(1234)
 using CSV, DataFrames, Statistics, Dates
 using BlackBoxOptim
+using StatsBase; corspearman
+
+# blackbox settings
+maxtime = 30  # seconds of maximum runtime
+tracemode = :compact  # :compact, :verbose, :silent. Output of optimization process
 
 # read adjacency matrix from CSV
 W = Matrix(CSV.read("data/Schaefer2018_200Parcels_CN.csv", DataFrame; header=false))
 N = size(W,1)
 
 # load data
+println("\nloading dataset...")
 FDG_matrix, amyloid_matrix, tau_matrix = nothing, nothing, nothing
 #FDG_matrix, amyloid_matrix, tau_matrix = load_dataset(:baseline_amyloid_tau)
-FDG_matrix, amyloid_matrix, tau_matrix = load_dataset(:FDG_amyloid_tau_longitudinal)
+FDG_matrix, amyloid_matrix, tau_matrix = load_dataset(:FDG_amyloid_tau_longitudinal; centiloid_threshold=20)
+println("...using $(size(FDG_matrix,1)) subjects.\n")
 
-# drop missing rows
+# drop missing rows and normalize
 FDG_matrix, amyloid_matrix, tau_matrix = drop_missing_rows(FDG_matrix, amyloid_matrix, tau_matrix)
-if FDG_matrix !== nothing
-    #FDG_matrix ./= maximum(FDG_matrix)  # normalize by median
-    # normalize each row between 0 and 1
-    for i in axes(FDG_matrix,1)
-        FDG_matrix[i, :] .= (FDG_matrix[i, :] .- minimum(FDG_matrix[i, :])) ./ (maximum(FDG_matrix[i, :]) - minimum(FDG_matrix[i, :]))
-    end
-end
-if amyloid_matrix !== nothing
-    #amyloid_matrix ./= maximum(amyloid_matrix)  # normalize by median
-    # normalize each row between 0 and 1
-    for i in axes(amyloid_matrix,1)
-        amyloid_matrix[i, :] .= (amyloid_matrix[i, :] .- minimum(amyloid_matrix[i, :])) ./ (maximum(amyloid_matrix[i, :]) - minimum(amyloid_matrix[i, :]))
-    end
-end
+FDG_matrix = normalize_rows(FDG_matrix)
+amyloid_matrix = normalize_rows(amyloid_matrix)
 
+# Laplacian
+L = laplacian(W, kind=:out, normalize=true)
 
-# random Laplacian and activity matrix
-L = laplacian(W, kind=:out)
-L = L ./ maximum(eigvals(L))  # normalize Laplacian
-tspan = (0, 50.0)
-Tn = 500
+# Optimization & simulation settings
+T = 1.0  # total time for global optimization
+tspan = (0, 50)  # time span for timesweep optimization
+Tn = 500  # number of timepoints to simulate
+
+# define epicenter accuracy metric with m candidates
 m = 10  # number of epicenter candidates
-S = size(tau_matrix,1)
+epicenter_accuracy_m(pred, tau) = epicenter_accuracy(pred, tau, m)  # define epicenter metric if used
 
-# OPTIMIZE Epicenter hits
-# Amyloid:
-# WITH k and lambda we get 0.1423 best ratio
-# WIITH k,lambda=1 we get 0.141 best ratio 
-# FDG
-# with k and lambda we get 0.0633 best rato
-function objective(θ)
-    ϵA, ϵF = θ
-    optimal_epis = zeros(S)  # store the optimal epicenter ratio per subject over time, given parameters
-    for i in 1:S
-        # build predictions
-        init_timeseries = disease_initiation_timeseries(
-            L,
-            diagm(amyloid_matrix[i,:]),
-            diagm(FDG_matrix[i,:]),
-            1/1*ones(N),
-            1, ϵA, ϵF, 0, 0,
-            tspan,
-            Tn
-        )
-        epis = zeros(size(init_timeseries,2))
-        for j in axes(init_timeseries,2)
-            epis[j] = epicenter_accuracy(reshape(init_timeseries[:,j], 1, N), reshape(tau_matrix[i,:],1,N), m)[1]  # transpose of timeseries as it's assumed rows are predicitons not columns
-        end
-        #epi = epicenter_accuracy(transpose(init_timeseries), tau_matrix, m)  # transpose of timeseries as it's assumed rows are predicitons not columns
-        optimal_epis[i] = maximum(epis)
-    end
-    return -mean(optimal_epis)           # minimize → negative to maximize accuracy
-end
+# ================================
+# METRIC SELECTION (one-line change)
+# must be a function that takes (predicted, observed) as arguments
+# ================================
+# PICK A METRIC
+#metric = epicenter_accuracy_m
+#metric = cor
+metric = corspearman
 
+# empiric PET models
+amy_pet_model = [metric(amyloid_matrix[i,:], tau_matrix[i,:]) for i in axes(amyloid_matrix,1)]
+FDG_pet_model = [metric(FDG_matrix[i,:], tau_matrix[i,:]) for i in axes(FDG_matrix,1)]
+
+# ================================
+# RUN FIRST OPTIMIZATION (same parameters)
+# ================================
+objective = make_objective_timesweep(metric, L, amyloid_matrix, FDG_matrix,
+                                     tau_matrix, tspan, Tn)
 res = bboptimize(
     objective;
     SearchRange = [
-        (-1.0, 20.0),   # ϵA
-        (-1.0, 20.0),   # ϵF
+        (-1.0, 5.0),   # ϵA
+        (-1.0, 5.0),   # ϵF
     ],
     NumDimensions = 2,
-    MaxTime = 3600,      # run 1 hour
-    TraceMode = :verbose
+    MaxTime = maxtime,
+    TraceMode = tracemode
 )
-
 best_params = best_candidate(res)
 best_score  = -best_fitness(res)
 
-# NULL MODEL (AMYLOID and FDG PET)
-amy_pet_epis = epicenter_accuracy(amyloid_matrix, tau_matrix, m)
-FDG_pet_epis = epicenter_accuracy(FDG_matrix, tau_matrix, m)
-
-# ================================
-# SAVE OPTIMIZATION SUMMARY
-# ================================
-
-summary_file = "results/optimal_epicenter_summary_$(Dates.format(now(), "yyyy-mm-dd_HHMM")).txt"
-
-open(summary_file, "w") do io
-    println(io, "Optimization summary")
-    println(io, "Timestamp: ", Dates.now())
-    println(io, "number of epicenters = $(m)")
-    println(io, "Tspan = $(tspan)")
-    println(io, "#timepoints = $(Tn)")
-    println(io, "\nBest parameters:")
-    println(io, "ϵA = $(best_params[1])")
-    println(io, "ϵF = $(best_params[2])")
-
-    println(io, "\nBest score (mean epicenter accuracy): ", best_score)
-    println(io, "\nBlackBoxOptim summary:\n")
-    println(io, res)
-
-    # ---- NEW: Null model results ----
-    println(io, "\nNull model accuracies:")
-    println(io, "Amyloid PET null model: $(mean(amy_pet_epis))")
-    println(io, "FDG PET null model: $(mean(FDG_pet_epis))")
-    # ---------------------------------
-
-
-end
-
+# save optimization
+summary_file = "results/opt_$(string(metric))_timesweep_$(Dates.format(now(), "yyyy-mm-dd_HHMM")).txt"
+save_optimization_summary(summary_file; res, best_params, best_score, tspan, Tn)
 println("Saved optimization results to $summary_file")
 
-
-
-# check optimal solution
-optimal_epis = zeros(S)  # store the optimal epicenter ratio per subject over time, given parameters
-for i in 1:S
-    # build predictions
-    init_timeseries = disease_initiation_timeseries(
-        L,
-        diagm(amyloid_matrix[i,:]),
-        diagm(FDG_matrix[i,:]),
-        1/1*ones(N),
-        1, best_params[1], best_params[2], 0, 0,
-        tspan,
-        Tn
-    )
-    epis = zeros(size(init_timeseries,2))
-    for j in axes(init_timeseries,2)
-        epis[j] = epicenter_accuracy(reshape(init_timeseries[:,j], 1, N), reshape(tau_matrix[i,:],1,N), m)[1]  # transpose of timeseries as it's assumed rows are predicitons not columns
-    end
-    #epi = epicenter_accuracy(transpose(init_timeseries), tau_matrix, m)  # transpose of timeseries as it's assumed rows are predicitons not columns
-    optimal_epis[i] = maximum(epis)
-end
-
-histogram(FDG_pet_epis, alpha=0.75, label="FDG PET Null Model, mean = $(round(mean(FDG_pet_epis), digits=2))")
-histogram!(amy_pet_epis, alpha=0.75, label="Amyloid PET Null Model, mean = $(round(mean(amy_pet_epis), digits=2))")
-histogram!(optimal_epis, title="Optimal Epicenter Accuracy Histogram", xlabel="Epicenter Accuracy", ylabel="Frequency (subjects)", label="Nonlinear model, mean = $(round(mean(optimal_epis), digits=2))", alpha=0.75)  
-savefig("figures/optimal_epicenter_histogram_$(Dates.format(now(), "yyyy-mm-dd_HHMM")).png")
-
-
-
-
-# --------------------------------------------------------------------------------------------------------- 
+# ==============================================================================
 # GLOBAL OPTIMIZATION
-# --------------------------------------------------------------------------------------------------------- 
-T = 1.0
-function objective(θ)
-    ρ, ϵA, ϵF = θ
-    init_matrix = disease_initiation_matrix(
-        L,
-        amyloid_matrix,
-        FDG_matrix,
-        1/1*ones(N),
-        ρ, ϵA, ϵF, 0, 0,
-        T
-    )   
-    epis = epicenter_accuracy(init_matrix, tau_matrix, m)  # transpose of timeseries as it's assumed rows are predicitons not columns
-    return -mean(epis)           # minimize → negative to maximize accuracy
-end
-
+# ==============================================================================
+objective = make_objective_global(metric, L, amyloid_matrix, FDG_matrix,
+                                  tau_matrix, T)
 res = bboptimize(
     objective;
     SearchRange = [
-        (0.0, 50.0),   # ϵA
-        (-1.0, 20.0),   # ϵA
-        (-1.0, 20.0),   # ϵF
+        (0.0, 50.0),   # ρ
+        (-1.0, 5.0),   # ϵA
+        (-1.0, 5.0),   # ϵF
     ],
     NumDimensions = 3,
-    MaxTime = 3600,      # run 1 hour
-    TraceMode = :verbose
+    MaxTime = maxtime,
+    TraceMode = tracemode
 )
-
 best_params = best_candidate(res)
 best_score  = -best_fitness(res)
 
-# NULL MODEL (AMYLOID and FDG PET)
-amy_pet_epis = epicenter_accuracy(amyloid_matrix, tau_matrix, m)
-FDG_pet_epis = epicenter_accuracy(FDG_matrix, tau_matrix, m)
-
-# ================================
-# SAVE OPTIMIZATION SUMMARY
-# ================================
-
-summary_file = "results/optimal_epicenter_global_summary_$(Dates.format(now(), "yyyy-mm-dd_HHMM")).txt"
-
-open(summary_file, "w") do io
-    println(io, "Optimization summary")
-    println(io, "Timestamp: ", Dates.now())
-    println(io, "number of epicenters = $(m)")
-    println(io, "T = $(T)")
-    println(io, "\nBest parameters:")
-    println(io, "ρ = $(best_params[1])")
-    println(io, "ϵA = $(best_params[2])")
-    println(io, "ϵF = $(best_params[3])")
-
-    println(io, "\nBest score (mean epicenter accuracy): ", best_score)
-    println(io, "\nBlackBoxOptim summary:\n")
-    println(io, res)
-
-    # ---- NEW: Null model results ----
-    println(io, "\nNull model accuracies:")
-    println(io, "Amyloid PET null model: $(mean(amy_pet_epis))")
-    println(io, "FDG PET null model: $(mean(FDG_pet_epis))")
-    # ---------------------------------
-
-
-end
-
+# save optimiation
+summary_file = "results/opt_$(string(metric))_global_$(Dates.format(now(), "yyyy-mm-dd_HHMM")).txt"
+save_optimization_summary(summary_file; res, best_params, best_score, tspan, Tn)
 println("Saved optimization results to $summary_file")
-
-
-# check optimal solution
-init_matrix = disease_initiation_matrix(
-    L,
-    amyloid_matrix,
-    FDG_matrix,
-    1/1*ones(N),
-    best_params[1], best_params[2], best_params[3], 0, 0,
-    T
-)   
-epis = epicenter_accuracy(init_matrix, tau_matrix, m)  # transpose of timeseries as it's assumed rows are predicitons not columns
-histogram(FDG_pet_epis, alpha=0.75, label="FDG PET Null Model, mean = $(round(mean(FDG_pet_epis), digits=2))")
-histogram!(amy_pet_epis, alpha=0.75, label="Amyloid PET Null Model, mean = $(round(mean(amy_pet_epis), digits=2))")
-histogram!(epis, title="Optimal Epicenter Accuracy Histogram (global ρ)", xlabel="Epicenter Accuracy", ylabel="Frequency (subjects)", label="Nonlinear model, mean = $(round(mean(epis), digits=2))", alpha=0.75)  
-savefig("figures/optimal_epicenter_histogram_global_$(Dates.format(now(), "yyyy-mm-dd_HHMM")).png")

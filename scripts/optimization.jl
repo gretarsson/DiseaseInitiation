@@ -7,7 +7,7 @@ using BlackBoxOptim
 using StatsBase; corspearman
 
 # blackbox settings
-maxtime = 30  # seconds of maximum runtime
+maxtime = 3  # seconds of maximum runtime
 tracemode = :compact  # :compact, :verbose, :silent. Output of optimization process
 
 # read adjacency matrix from CSV
@@ -17,7 +17,6 @@ N = size(W,1)
 # load data
 println("\nloading dataset...")
 FDG_matrix, amyloid_matrix, tau_matrix = nothing, nothing, nothing
-#FDG_matrix, amyloid_matrix, tau_matrix = load_dataset(:baseline_amyloid_tau)
 FDG_matrix, amyloid_matrix, tau_matrix = load_dataset(:FDG_amyloid_tau_longitudinal; centiloid_threshold=20)
 println("...using $(size(FDG_matrix,1)) subjects.\n")
 
@@ -34,14 +33,10 @@ T = 1.0  # total time for global optimization
 tspan = (0, 50)  # time span for timesweep optimization
 Tn = 500  # number of timepoints to simulate
 
-# define epicenter accuracy metric with m candidates
+# DEFINE METRICS (if necessary)
 m = 10  # number of epicenter candidates
 epicenter_accuracy_m(pred, tau) = epicenter_accuracy(pred, tau, m)  # define epicenter metric if used
 
-# ================================
-# METRIC SELECTION (one-line change)
-# must be a function that takes (predicted, observed) as arguments
-# ================================
 # PICK A METRIC
 #metric = epicenter_accuracy_m
 #metric = cor
@@ -54,10 +49,10 @@ FDG_pet_model = [metric(FDG_matrix[i,:], tau_matrix[i,:]) for i in axes(FDG_matr
 # ================================
 # RUN FIRST OPTIMIZATION (same parameters)
 # ================================
-objective = make_objective_timesweep(metric, L, amyloid_matrix, FDG_matrix,
+objective_timesweep = make_objective_timesweep(metric, L, amyloid_matrix, FDG_matrix,
                                      tau_matrix, tspan, Tn)
-res = bboptimize(
-    objective;
+res_timesweep = bboptimize(
+    objective_timesweep;
     SearchRange = [
         (-1.0, 5.0),   # ϵA
         (-1.0, 5.0),   # ϵF
@@ -66,12 +61,11 @@ res = bboptimize(
     MaxTime = maxtime,
     TraceMode = tracemode
 )
-best_params = best_candidate(res)
-best_score  = -best_fitness(res)
-
+best_params_timesweep = best_candidate(res_timesweep)
+best_score_timesweep  = -best_fitness(res_timesweep)
 # save optimization
 summary_file = "results/opt_$(string(metric))_timesweep_$(Dates.format(now(), "yyyy-mm-dd_HHMM")).txt"
-save_optimization_summary(summary_file; res, best_params, best_score, tspan, Tn)
+save_optimization_summary(summary_file; res=res_timesweep, best_params=best_params_timesweep, best_score=best_score_timesweep, tspan, Tn)
 println("Saved optimization results to $summary_file")
 
 # ==============================================================================
@@ -92,8 +86,7 @@ res = bboptimize(
 )
 best_params = best_candidate(res)
 best_score  = -best_fitness(res)
-
-# save optimiation
+# save optimization
 summary_file = "results/opt_$(string(metric))_global_$(Dates.format(now(), "yyyy-mm-dd_HHMM")).txt"
 save_optimization_summary(summary_file; res, best_params, best_score, tspan, Tn)
 println("Saved optimization results to $summary_file")

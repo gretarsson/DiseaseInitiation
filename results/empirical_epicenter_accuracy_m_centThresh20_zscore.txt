@@ -1,0 +1,68 @@
+Empirical baseline summary
+Metric: epicenter_accuracy_m
+
+Number of subjects: 50
+
+Amyloid PET vs Tau:
+  mean   = 0.13
+  median = 0.1
+  std    = 0.1265717510476382
+
+FDG PET vs Tau:
+  mean   = 0.07
+  median = 0.0
+  std    = 0.10926470386270254
+
+Per-subject values (same order as subject_IDs):
+
+ID, amyloid_score, FDG_score
+sub-0021, 0.0, 0.0
+sub-0120, 0.0, 0.0
+sub-0618, 0.1, 0.0
+sub-0668, 0.1, 0.1
+sub-0684, 0.2, 0.2
+sub-0767, 0.0, 0.0
+sub-0969, 0.4, 0.1
+sub-1016, 0.1, 0.0
+sub-4028, 0.0, 0.1
+sub-4076, 0.4, 0.1
+sub-4105, 0.0, 0.4
+sub-4119, 0.3, 0.0
+sub-4148, 0.1, 0.0
+sub-4177, 0.0, 0.0
+sub-4200, 0.0, 0.0
+sub-4224, 0.3, 0.0
+sub-4234, 0.3, 0.0
+sub-4349, 0.1, 0.1
+sub-4352, 0.1, 0.3
+sub-4382, 0.0, 0.0
+sub-4384, 0.1, 0.1
+sub-4387, 0.2, 0.1
+sub-4401, 0.0, 0.0
+sub-4424, 0.1, 0.1
+sub-4428, 0.1, 0.0
+sub-4464, 0.3, 0.1
+sub-4488, 0.0, 0.0
+sub-4552, 0.0, 0.2
+sub-4580, 0.0, 0.1
+sub-4607, 0.1, 0.2
+sub-4620, 0.0, 0.1
+sub-4872, 0.0, 0.0
+sub-4900, 0.0, 0.0
+sub-4951, 0.1, 0.0
+sub-5126, 0.2, 0.2
+sub-5176, 0.3, 0.0
+sub-5194, 0.1, 0.0
+sub-5243, 0.0, 0.0
+sub-5259, 0.2, 0.0
+sub-5266, 0.2, 0.1
+sub-5288, 0.1, 0.5
+sub-5KDTGT, 0.3, 0.0
+sub-69D8NQ, 0.1, 0.0
+sub-AWQ63F, 0.0, 0.1
+sub-BCNZ72, 0.2, 0.0
+sub-BGIO56, 0.3, 0.0
+sub-M5ZMD7, 0.3, 0.2
+sub-QY7FPO, 0.1, 0.0
+sub-V4BVPJ, 0.4, 0.0
+sub-YBZYDB, 0.2, 0.0

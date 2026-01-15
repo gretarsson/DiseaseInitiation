@@ -6,6 +6,7 @@ export spearman_with_pvalue, top1_rank_score
 export normalize_rows
 export make_objective_timesweep, make_objective_global, save_local_timesweep_results
 export save_optimization_summary
+export zscore_PET, FDG_matrix_reference
 
 using DifferentialEquations, LinearAlgebra, Dates, CSV, DataFrames, StatsBase, Distributions
 
@@ -43,7 +44,9 @@ function disease_initiation_vector(L, M1, M2, u0, ρ, ϵ1, ϵ2, k, λ, T)
     N = length(u0)
 
     # Base linear operator X
-    X = -ρ * L * (I + ϵ1 * M1 + ϵ2 * M2) - λ * I
+    S = max.(0.0, I + ϵ1 * M1 + ϵ2 * M2)  # enforce nonnegativity (no negative edges)
+    X = -ρ * L * S - λ * I
+    #X = -ρ * L * (I + ϵ1 * M1 + ϵ2 * M2) - λ * I
 
     # Constant forcing term b = k * ones
     b = k .* ones(N)
@@ -437,4 +440,113 @@ function save_local_timesweep_results(subject_fits, file_csv::String)
     return df, file_csv
 end
 
+
+"""
+    zscore_FDG(FDG_matrix, FDG_ref_matrix; eps=1e-12)
+
+Z-score FDG_matrix ROI-wise using mean/std computed from FDG_ref_matrix.
+
+- Columns = ROIs
+- Rows = subjects
+- Missing values are ignored when computing reference statistics
+- Missing values are preserved in the output
+"""
+function zscore_PET(
+    FDG_matrix::AbstractMatrix{<:Union{Missing,Real}},
+    FDG_ref_matrix::AbstractMatrix{<:Union{Missing,Real}};
+    eps::Float64 = 1e-12
+)
+    S, N = size(FDG_matrix)
+    @assert size(FDG_ref_matrix, 2) == N
+
+    μ = zeros(Float64, N)
+    σ = zeros(Float64, N)
+
+    # Compute reference mean/std per ROI
+    for j in 1:N
+        ref_vals = Float64[]
+        for i in axes(FDG_ref_matrix, 1)
+            x = FDG_ref_matrix[i, j]
+            if x !== missing
+                push!(ref_vals, float(x))
+            end
+        end
+        μ[j] = mean(ref_vals)
+        σj = std(ref_vals)
+        σ[j] = σj < eps ? 1.0 : σj
+    end
+
+    # Z-score target matrix
+    Z = Matrix{Union{Missing,Float64}}(missing, S, N)
+    for i in 1:S, j in 1:N
+        x = FDG_matrix[i, j]
+        Z[i, j] = x === missing ? missing : (float(x) - μ[j]) / σ[j]
+    end
+
+    return Z
 end
+
+
+# build FDG reference
+function FDG_matrix_reference()
+
+    csv_path = "data/ADNI_HABS_amyloid_FDG_longitudinal_tau.csv"
+    df = CSV.read(csv_path, DataFrame)
+
+    @assert "DX" in names(df) "Column DX not found in CSV."
+    @assert "ID" in names(df) "Column ID not found in CSV."
+
+    # -----------------------------
+    # Clean up "NA" strings -> missing (only for string columns)
+    # -----------------------------
+    for c in names(df)
+        col = df[!, c]
+        if eltype(col) <: AbstractString
+            df[!, c] = allowmissing(col)
+            replace!(df[!, c], "NA" => missing)
+        end
+    end
+
+    # -----------------------------
+    # Filter CN rows (keep ALL visits that are CN)
+    # -----------------------------
+    df_cn = df[df.DX .== "CN", :]
+
+    println("Total rows: $(nrow(df))")
+    println("CN rows:    $(nrow(df_cn))")
+
+    # -----------------------------
+    # Identify FDG columns (match your existing convention)
+    # -----------------------------
+    FDG_cols = filter(c -> startswith(c, "FDG.SUVR.Schaefer200"), names(df_cn))
+    @assert !isempty(FDG_cols) "No FDG columns found. Check column prefixes in the CSV."
+
+    # -----------------------------
+    # Parse FDG columns to Float64 (allow missing)
+    # -----------------------------
+    for c in FDG_cols
+        # Works if the column is already numeric or a String/Union with missing
+        df_cn[!, c] = passmissing(x -> x isa Real ? Float64(x) : parse(Float64, x)).(df_cn[!, c])
+    end
+
+    # -----------------------------
+    # Build FDG_matrix (rows = CN visits, cols = ROIs)
+    # -----------------------------
+    FDG_matrix = Matrix(df_cn[:, FDG_cols])  # Matrix{Union{Missing,Float64}} likely
+
+    # Optional: keep metadata aligned with rows of FDG_matrix
+    IDs   = df_cn.ID
+    dates = ("date" in names(df_cn)) ? df_cn.date : nothing
+    if dates !== nothing && eltype(dates) <: AbstractString
+        # adjust dateformat if yours differs
+        df_cn.date = Date.(df_cn.date, dateformat"yyyy-mm-dd")
+        dates = df_cn.date
+    end
+    nonmissing_rows = findall(i -> !all(ismissing, FDG_matrix[i, :]), 1:size(FDG_matrix, 1))
+    FDG_matrix = FDG_matrix[nonmissing_rows, :]
+    return Matrix{Float64}(FDG_matrix)
+end
+
+
+end
+

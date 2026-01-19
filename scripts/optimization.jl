@@ -8,6 +8,7 @@ using StatsBase; corspearman
 
 # settings
 const cent_thresh = 20 # centiloid threshold for amyloid positivity
+const suffix = "inscale"
 
 # blackbox settings
 maxtime = 300  # seconds of maximum runtime
@@ -43,7 +44,7 @@ Tn = 500  # number of timepoints to simulate
 m = 10  # number of epicenter candidates
 epicenter_accuracy_m(pred, tau) = epicenter_accuracy(pred, tau, m)  # define epicenter metric if used
 
-# PICK A METRIC
+# PICK A METRIC, must take two vectors and return a scalar (see epicenter_accuracy_m above)
 metric = epicenter_accuracy_m
 #metric = cor
 #metric = corspearman
@@ -56,7 +57,7 @@ FDG_pet_model = [metric(FDG_matrix[i,:], tau_matrix[i,:]) for i in axes(FDG_matr
 # ================================
 # RUN FIRST OPTIMIZATION (global eA, eF, individual rho)
 # ================================
-objective_timesweep = make_objective_timesweep(metric, L, amyloid_matrix, FDG_matrix,
+objective_timesweep = make_objective_timesweep(metric, L, amyloid_matrix, amyloid_matrix,
                                      tau_matrix, tspan, Tn)
 res_timesweep = bboptimize(
     objective_timesweep;
@@ -64,14 +65,14 @@ res_timesweep = bboptimize(
         (-1.0, 1.0),   # ϵA
         (-1.0, 1.0),   # ϵF
     ],
-    NumDimensions = 2,
+    NumDimensions = 4,
     MaxTime = maxtime,
     TraceMode = tracemode
 )
 best_params_timesweep = best_candidate(res_timesweep)
 best_score_timesweep  = -best_fitness(res_timesweep)
 # save optimization
-summary_file = "results/opt_$(string(metric))_timesweep__centThresh$(cent_thresh)_zscore.txt"
+summary_file = "results/opt_$(string(metric))_timesweep__centThresh$(cent_thresh)_$(suffix).txt"
 save_optimization_summary(summary_file; res=res_timesweep, best_params=best_params_timesweep, best_score=best_score_timesweep, tspan, Tn)
 println("Saved optimization results to $summary_file")
 
@@ -133,14 +134,14 @@ end
 # i.e. from the tau data, find individuals who basically only have tau load in one place. Then we check whether our model can predict that high-tau region.
 # this is maybe a better way to test if we can predict epicenters.
 # -------------------------------
-file_name = "results/opt_$(string(metric))_individualized_centThresh$(cent_thresh)_zscore.csv" 
+file_name = "results/opt_$(string(metric))_individualized_centThresh$(cent_thresh)_$(suffix).csv" 
 df_local, csv_path = save_local_timesweep_results(subject_fits, file_name)
 #
 
 # ================================
 # SAVE EMPIRICAL BASELINE SUMMARY
 # ================================
-empirical_file = "results/empirical_$(string(metric))_centThresh$(cent_thresh)_zscore.txt"
+empirical_file = "results/empirical_$(string(metric))_centThresh$(cent_thresh)_$(suffix).txt"
 
 open(empirical_file, "w") do io
     println(io, "Empirical baseline summary")

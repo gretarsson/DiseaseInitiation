@@ -46,6 +46,15 @@ function disease_initiation_vector(L, M1, M2, u0, ρ, ϵ1, ϵ2, k, λ, T)
     # Base linear operator X
     S = max.(0.0, I + ϵ1 * M1 + ϵ2 * M2)  # enforce nonnegativity (no negative edges)
     X = -ρ * L * S - λ * I
+
+    # trying out scaling rows as well
+    #S1 = max.(0.0, I + ϵ1 * M1 + ϵ2 * M2)  # enforce nonnegativity (no negative edges)
+    #S2 = max.(0.0, I + k * M1 + λ * M2)
+    #k = 0; λ = 0  # just testing with row-scaling and cant be botherec tod efine new parameters
+    #scaled_L = S1*L*S2
+    #scaled_L[diagind(L)] .= vec(sum(scaled_L, dims=1))
+    #X = -ρ * scaled_L * S - λ * I
+
     #X = -ρ * L * (I + ϵ1 * M1 + ϵ2 * M2) - λ * I
 
     # Constant forcing term b = k * ones

@@ -7,6 +7,7 @@ export normalize_rows
 export make_objective_timesweep, make_objective_global, save_local_timesweep_results
 export save_optimization_summary
 export zscore_PET, FDG_matrix_reference
+export read_epicenter_subjects_and_intersections
 
 using DifferentialEquations, LinearAlgebra, Dates, CSV, DataFrames, StatsBase, Distributions
 
@@ -555,6 +556,51 @@ function FDG_matrix_reference()
     FDG_matrix = FDG_matrix[nonmissing_rows, :]
     return Matrix{Float64}(FDG_matrix)
 end
+
+
+"""
+Read subject IDs and ROI intersections from
+`subjects_with_epicenters_ALL_metrics.txt`.
+
+Returns
+-------
+subject_ids :: Vector{String}
+    Subject IDs (one per subject)
+
+roi_intersections :: Vector{Vector{Int}}
+    Intersection of ROI indices for each subject
+    (original indexing; may be empty)
+"""
+function read_epicenter_subjects_and_intersections(txt_path::AbstractString)
+    subject_ids = String[]
+    roi_intersections = Vector{Vector{Int}}()
+
+    open(txt_path, "r") do io
+        for line in eachline(io)
+            line = strip(line)
+            isempty(line) && continue
+            startswith(line, "#") && continue
+
+            # Expected format:
+            # SubjectID<TAB>MAD_ROIs<TAB>IQR_ROIs<TAB>RANKGAP_ROIs<TAB>Intersection<TAB>Union
+            fields = split(line, '\t')
+            @assert length(fields) ≥ 5 "Malformed line:\n$line"
+
+            push!(subject_ids, fields[1])
+
+            # Parse intersection column (field 5)
+            if isempty(fields[5])
+                push!(roi_intersections, Int[])
+            else
+                rois = parse.(Int, split(fields[5], ','))
+                push!(roi_intersections, rois)
+            end
+        end
+    end
+
+    return subject_ids, roi_intersections
+end
+
 
 
 end

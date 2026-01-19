@@ -7,8 +7,9 @@ using BlackBoxOptim
 using StatsBase; corspearman
 
 # settings
-const cent_thresh = 20 # centiloid threshold for amyloid positivity
-const suffix = "inscale"
+const cent_thresh = nothing # centiloid threshold for amyloid positivity
+const suffix = "epiIDs"
+const epicenter_preprocess = true
 
 # blackbox settings
 maxtime = 300  # seconds of maximum runtime
@@ -17,6 +18,9 @@ tracemode = :compact  # :compact, :verbose, :silent. Output of optimization proc
 # read adjacency matrix from CSV
 W = Matrix(CSV.read("data/Schaefer2018_200Parcels_CN.csv", DataFrame; header=false))
 N = size(W,1)
+
+# read subjcet ID of people with epicenters
+epicenter_IDs, epicenters = read_epicenter_subjects_and_intersections("figures/tau_PET_distributions/subjects_with_epicenters_ALL_metrics.txt")
 
 # load data
 println("\nloading dataset...")
@@ -32,6 +36,15 @@ FDG_matrix = zscore_PET(FDG_matrix, FDG_ref)
 amyloid_matrix = normalize_rows(amyloid_matrix)
 subject_IDs = subject_IDs[nonmissing_subj]  # keep track of subject IDs after dropping missing
 
+# only use individuals with a detected epicenter(s)
+if epicenter_preprocess
+    epi_idxs = findall(x -> x in epicenter_IDs, subject_IDs)
+    FDG_matrix = FDG_matrix[epi_idxs, :]
+    amyloid_matrix = amyloid_matrix[epi_idxs, :]
+    tau_matrix = tau_matrix[epi_idxs, :]
+end
+
+
 # Laplacian
 L = laplacian(W, kind=:out, normalize=true)
 
@@ -41,7 +54,7 @@ tspan = (0, 50)  # time span for timesweep optimization
 Tn = 500  # number of timepoints to simulate
 
 # DEFINE METRICS (if necessary)
-m = 10  # number of epicenter candidates
+m = 5  # number of epicenter candidates
 epicenter_accuracy_m(pred, tau) = epicenter_accuracy(pred, tau, m)  # define epicenter metric if used
 
 # PICK A METRIC, must take two vectors and return a scalar (see epicenter_accuracy_m above)
@@ -85,6 +98,11 @@ subject_fits = Vector{NamedTuple}(undef, S)
 
 for i in 1:S
     println("\nOptimizing subject $i / $S ...")
+
+
+    # DEFINE METRICS for each subject based on how many epicenters they have, this might be good, but will have to check for overfitting which is likely
+    #mi = length(epicenters[i])  # number of epicenter candidates for this subject
+    #epicenter_accuracy_m(pred, tau) = epicenter_accuracy(pred, tau, mi)  # define epicenter metric if used
 
     # reshape rows to 1×N matrices
     amy_i = reshape(amyloid_matrix[i, :], 1, :)

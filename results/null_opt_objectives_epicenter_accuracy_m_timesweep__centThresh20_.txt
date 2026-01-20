@@ -1,0 +1,11 @@
+# Null optimization best objectives
+# metric=epicenter_accuracy_m  centThresh=20  suffix=  n_null=3
+# summary statistics
+# mean = 0.12066666666666666
+# min  = 0.118
+# max  = 0.122
+
+# one value per line: best_score_timesweep
+0.122
+0.122
+0.118

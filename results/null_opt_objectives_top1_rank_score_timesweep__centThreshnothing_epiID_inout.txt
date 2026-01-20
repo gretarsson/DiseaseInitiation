@@ -1,0 +1,11 @@
+# Null optimization best objectives
+# metric=top1_rank_score  centThresh=nothing  suffix=epiID_inout  n_null=3
+# summary statistics
+# mean = 0.607593984962406
+# min  = 0.5945864661654136
+# max  = 0.6149999999999999
+
+# one value per line: best_score_timesweep
+0.6149999999999999
+0.5945864661654136
+0.6131954887218045

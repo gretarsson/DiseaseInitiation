@@ -45,16 +45,16 @@ function disease_initiation_vector(L, M1, M2, u0, ρ, ϵ1, ϵ2, k, λ, T)
     N = length(u0)
 
     # Base linear operator X
-    S = max.(0.0, I + ϵ1 * M1 + ϵ2 * M2)  # enforce nonnegativity (no negative edges)
-    X = -ρ * L * S - λ * I
+    #S = max.(0.0, I + ϵ1 * M1 + ϵ2 * M2)  # enforce nonnegativity (no negative edges)
+    #X = -ρ * L * S - λ * I
 
-    # trying out scaling rows as well
-    #S1 = max.(0.0, I + ϵ1 * M1 + ϵ2 * M2)  # enforce nonnegativity (no negative edges)
-    #S2 = max.(0.0, I + k * M1 + λ * M2)
-    #k = 0; λ = 0  # just testing with row-scaling and cant be botherec tod efine new parameters
-    #scaled_L = S1*L*S2
-    #scaled_L[diagind(L)] .= vec(sum(scaled_L, dims=1))
-    #X = -ρ * scaled_L * S - λ * I
+    # trying out scaling rows as well (need to change make_objective_timesweep too)
+    S1 = max.(0.0, I + ϵ1 * M1 + ϵ2 * M2)  # enforce nonnegativity (no negative edges)
+    S2 = max.(0.0, I + k * M1 + λ * M2)
+    k = 0; λ = 0  # just testing with row-scaling and cant be botherec tod efine new parameters
+    scaled_L = S1*L*S2
+    scaled_L[diagind(L)] .= vec(sum(scaled_L, dims=1))
+    X = -ρ * scaled_L * S - λ * I
 
     #X = -ρ * L * (I + ϵ1 * M1 + ϵ2 * M2) - λ * I
 
@@ -81,6 +81,19 @@ end
 function disease_initiation_timeseries(L, M1, M2, u0, ρ, ϵ1, ϵ2, k, λ, tspan, tN)
     N = length(u0)
     Tmin, Tmax = tspan
+
+
+    # trying out scaling rows as well (need to change make_objective_timesweep too)
+    #S1 = max.(0.0, I + ϵ1 * M1 + ϵ2 * M2)  # enforce nonnegativity (no negative edges)
+    #S2 = max.(0.0, I + k * M1 + λ * M2)
+    #k = 0; λ = 0  # just testing with row-scaling and cant be botherec tod efine new parameters
+    #scaled_L = S2*L*S1
+    #scaled_L[diagind(L)] .= vec(sum(scaled_L, dims=1))
+    #X = -ρ * scaled_L  - λ * I
+
+    # try interaction term
+    #X = -ρ * L * (I + ϵ1 * M1 + ϵ2 * M2 + k * M1 .* M2) - λ * I
+    #k = 0
 
     # Base linear operator X
     X = -ρ * L * (I + ϵ1 * M1 + ϵ2 * M2) - λ * I
@@ -327,6 +340,8 @@ function make_objective_timesweep(metric, L, amyloid_matrix, FDG_matrix,
     N = size(amyloid_matrix, 2)
     function objective(θ)
         ϵA, ϵF = θ
+        #ϵA, ϵF, k = θ
+        #ϵA, ϵF, k, λ = θ  # trying out scaling in and out degree
         scores = zeros(S)
         for i in 1:S
             init_timeseries = disease_initiation_timeseries(
@@ -335,6 +350,7 @@ function make_objective_timesweep(metric, L, amyloid_matrix, FDG_matrix,
                 diagm(FDG_matrix[i, :]),
                 ones(N),
                 1, ϵA, ϵF, 0, 0,
+                #1, ϵA, ϵF, k, λ,  # trying out scaling in and out degree
                 tspan,
                 Tn
             )

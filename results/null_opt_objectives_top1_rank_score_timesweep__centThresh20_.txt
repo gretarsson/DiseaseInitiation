@@ -1,0 +1,11 @@
+# Null optimization best objectives
+# metric=top1_rank_score  centThresh=20  suffix=  n_null=3
+# summary statistics
+# mean = 0.6138333333333333
+# min  = 0.6017
+# max  = 0.6264000000000001
+
+# one value per line: best_score_timesweep
+0.6017
+0.6264000000000001
+0.6134000000000001

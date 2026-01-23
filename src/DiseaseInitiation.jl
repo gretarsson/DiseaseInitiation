@@ -2,7 +2,7 @@ module DiseaseInitiation
 
 export laplacian, disease_initiation_vector, disease_initiation_matrix, epicenter_accuracy, load_dataset, drop_missing_rows
 export disease_initiation_timeseries
-export spearman_with_pvalue, top1_rank_score
+export spearman_with_pvalue, top1_rank_score, mean_epi_rank
 export normalize_rows
 export make_objective_timesweep, make_objective_global, save_local_timesweep_results
 export save_optimization_summary
@@ -158,6 +158,39 @@ function epicenter_accuracy(prediction, observation, k)
     hit =  length(intersect(epi_pred, obs_inds))/k  
     return hit
 end
+
+"""
+    mean_epi_rank_in_pred(pred, obs, epi_idx; descending=true)
+
+Mean rank of experimental epicenter indices `epi_idx` in the model
+prediction vector `pred` (higher = more epicenter-like).
+
+`obs` is accepted for interface compatibility but is not used.
+
+Ranks are 1-based; rank 1 = highest pred if descending=true.
+
+Returns: Float64
+"""
+function mean_epi_rank(
+    pred::AbstractVector{<:Real},
+    obs::AbstractVector{<:Real},      # unused, kept for interface compatibility
+    epi_idx::AbstractVector{Int};
+    descending::Bool = true,
+)::Float64
+    @assert length(pred) == length(obs) "pred and obs must have same length"
+    @assert all(1 .<= epi_idx .<= length(pred)) "epi_idx out of bounds"
+
+    order = sortperm(pred; rev=descending)
+
+    # region -> rank
+    rank = zeros(Int, length(pred))
+    for (r, i) in enumerate(order)
+        rank[i] = r
+    end
+
+    return -mean(rank[epi_idx])
+end
+
 
 
 
@@ -330,6 +363,26 @@ function subject_timesweep_metric(metric, init_timeseries, tau_row)
     return maximum(vals[2:end])  # exclude t=0 (variance is zero there for simulations with homogeneous initial conditions)
 end
 
+"""
+Normalize metric input so that each individual i has its own function metric[i].
+
+Accepts:
+- metric::Function                 -> replicated S times
+- metric::AbstractVector{<:Function} -> must have length S
+"""
+function normalize_metric(metric, S::Int)
+    if metric isa Function
+        return fill(metric, S)
+    elseif metric isa AbstractVector{<:Function}
+        length(metric) == S ||
+            throw(ArgumentError("metric has length $(length(metric)); expected S = $S"))
+        return metric
+    else
+        throw(ArgumentError("metric must be a Function or Vector{<:Function}"))
+    end
+end
+
+
 
 # ================================
 # HELPER: Build first objective (time sweep per subject)
@@ -338,6 +391,7 @@ function make_objective_timesweep(metric, L, amyloid_matrix, FDG_matrix,
                                   tau_matrix, tspan, Tn)
     S = size(tau_matrix, 1)
     N = size(amyloid_matrix, 2)
+    metrics = normalize_metric(metric, S)
     function objective(θ)
         ϵA, ϵF = θ
         #ϵA, ϵF, k = θ
@@ -355,10 +409,10 @@ function make_objective_timesweep(metric, L, amyloid_matrix, FDG_matrix,
                 Tn
             )
             scores[i] = subject_timesweep_metric(
-                metric, init_timeseries, tau_matrix[i, :]
+                metrics[i], init_timeseries, tau_matrix[i, :]
             )
         end
-        return -mean(scores)
+        return -median(scores)
     end
     return objective
 end

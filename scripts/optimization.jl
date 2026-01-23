@@ -8,12 +8,14 @@ using StatsBase; corspearman
 
 # settings
 const cent_thresh = nothing  # centiloid threshold for amyloid positivity
-const suffix = "AB2wGrowth"
+const DX = nothing
+const suffix = "epiRank"
 const epicenter_preprocess = true
 const null = true
+const zscore_FDG = false
 
 # blackbox settings
-maxtime = 300  # seconds of maximum runtime
+maxtime = 60  # seconds of maximum runtime
 tracemode = :compact  # :compact, :verbose, :silent. Output of optimization process
 
 # read adjacency matrix from CSV
@@ -26,14 +28,16 @@ epicenter_IDs, epicenters = read_epicenter_subjects_and_intersections("figures/t
 # load data
 println("\nloading dataset...")
 FDG_matrix, amyloid_matrix, tau_matrix = nothing, nothing, nothing
-FDG_matrix, amyloid_matrix, tau_matrix, subject_IDs = load_dataset(:FDG_amyloid_tau_longitudinal; centiloid_threshold=cent_thresh)
-println("...using $(size(FDG_matrix,1)) subjects.\n")
+FDG_matrix, amyloid_matrix, tau_matrix, subject_IDs = load_dataset(:FDG_amyloid_tau_longitudinal; centiloid_threshold=cent_thresh, DX=DX)
 
 # drop missing rows and normalize
 FDG_matrix, amyloid_matrix, tau_matrix, nonmissing_subj = drop_missing_rows(FDG_matrix, amyloid_matrix, tau_matrix)
-FDG_matrix = normalize_rows(FDG_matrix)
-#FDG_ref = FDG_matrix_reference()  # all FDGs of "CN" subjects as reference for z-scoring
-#FDG_matrix = zscore_PET(FDG_matrix, FDG_ref)
+if zscore_FDG
+    FDG_ref = FDG_matrix_reference()  # all FDGs of "CN" subjects as reference for z-scoring
+    FDG_matrix = zscore_PET(FDG_matrix, FDG_ref)
+else
+    FDG_matrix = normalize_rows(FDG_matrix)
+end
 amyloid_matrix = normalize_rows(amyloid_matrix)
 subject_IDs = subject_IDs[nonmissing_subj]  # keep track of subject IDs after dropping missing
 
@@ -45,6 +49,7 @@ if epicenter_preprocess
     tau_matrix = tau_matrix[epi_idxs, :]
     subject_IDs = subject_IDs[epi_idxs]
 end
+println("...using $(size(FDG_matrix,1)) subjects.\n")
 
 # Laplacian
 L = laplacian(W, kind=:out, normalize=true)
@@ -55,18 +60,45 @@ tspan = (0, 50)  # time span for timesweep optimization
 Tn = 500  # number of timepoints to simulate
 
 # DEFINE METRICS (if necessary)
-m = 10  # number of epicenter candidates
-epicenter_accuracy_m(pred, tau) = epicenter_accuracy(pred, tau, m)  # define epicenter metric if used
+#m = 10  # number of epicenter candidates
+#epicenter_accuracy_m(pred, tau) = epicenter_accuracy(pred, tau, m)  # define epicenter metric if used
+
+# define epicenter accuracy tailored each individual
+#3if epicenter_preprocess
+#3    epicenter_accuracies = Array{Function}(undef, length(subject_IDs))
+#3    for i in eachindex(subject_IDs)
+#3        m = length(epicenters[i])  # number of epicenter candidates for this subject
+#3        epicenter_accuracies[i] = epicenter_accuracy_m(pred, tau) = epicenter_accuracy(pred, tau, m)  # define epicenter metric if used
+#3    end
+#3end
+if epicenter_preprocess
+    rank_means = Array{Function}(undef, length(subject_IDs))
+    for i in eachindex(subject_IDs)
+        epi_idxs = epicenters[i]  # epicenter indices (experimental)
+        rank_means[i] = (pred, tau) -> mean_epi_rank(pred, tau, epi_idxs)
+    end
+end
+
 
 # PICK A METRIC, must take two vectors and return a scalar (see epicenter_accuracy_m above)
 #metric = epicenter_accuracy_m
+#metric = epicenter_accuracies
+metric = rank_means
 #metric = cor
 #metric = corspearman
-metric = top1_rank_score
+#metric = top1_rank_score
+
 
 # empiric PET models
-amy_pet_model = [metric(amyloid_matrix[i,:], tau_matrix[i,:]) for i in axes(amyloid_matrix,1)]
-FDG_pet_model = [metric(FDG_matrix[i,:], tau_matrix[i,:]) for i in axes(FDG_matrix,1)]
+amy_pet_model = [metric[i](-amyloid_matrix[i,:], tau_matrix[i,:]) for i in axes(amyloid_matrix,1)]
+FDG_pet_model = [metric[i](-FDG_matrix[i,:], tau_matrix[i,:]) for i in axes(FDG_matrix,1)]
+median(amy_pet_model)
+median(FDG_pet_model)
+# nothing - 15
+# 30 - 195
+# 28 - 73
+# 26 - 125
+# 24 - 97.5
 
 # ================================
 # RUN FIRST OPTIMIZATION (global eA, eF, individual rho)
@@ -86,7 +118,7 @@ res_timesweep = bboptimize(
 best_params_timesweep = best_candidate(res_timesweep)
 best_score_timesweep  = -best_fitness(res_timesweep)
 # save optimization
-summary_file = "results/opt_$(string(metric))_timesweep__centThresh$(cent_thresh)_$(suffix).txt"
+summary_file = "results/opt_timesweep__centThresh$(cent_thresh)_$(suffix).txt"
 save_optimization_summary(summary_file; res=res_timesweep, best_params=best_params_timesweep, best_score=best_score_timesweep, tspan, Tn)
 println("Saved optimization results to $summary_file")
 
@@ -128,8 +160,8 @@ if null
         res_timesweep = bboptimize(
             objective_timesweep;
             SearchRange = [
-                (-1.0, 1.0),   # ϵA
-                (-1.0, 1.0),   # ϵF
+                (0.0, 1.0),   # ϵA
+                (0.0, 1.0),   # ϵF
             ],
             NumDimensions = 2,
             MaxTime = maxtime,
@@ -143,13 +175,13 @@ if null
     end
 
     # save just the best objectives
-    null_file = "results/null_opt_objectives_$(string(metric))_timesweep__centThresh$(cent_thresh)_$(suffix).txt"
+    null_file = "results/null_opt_objectives_timesweep__centThresh$(cent_thresh)_$(suffix).txt"
     μ   = mean(null_scores)
     mn  = minimum(null_scores)
     mx  = maximum(null_scores)
     open(null_file, "w") do io
         println(io, "# Null optimization best objectives")
-        println(io, "# metric=$(string(metric))  centThresh=$(cent_thresh)  suffix=$(suffix)  n_null=$(n_null)")
+        println(io, "# centThresh=$(cent_thresh)  suffix=$(suffix)  n_null=$(n_null)")
         println(io, "# summary statistics")
         println(io, "# mean = $μ")
         println(io, "# min  = $mn")
@@ -235,7 +267,7 @@ end
 ## ================================
 ## SAVE EMPIRICAL BASELINE SUMMARY
 ## ================================
-empirical_file = "results/empirical_$(string(metric))_centThresh$(cent_thresh)_$(suffix).txt"
+empirical_file = "results/empirical_centThresh$(cent_thresh)_$(suffix).txt"
 
 open(empirical_file, "w") do io
     println(io, "Empirical baseline summary")

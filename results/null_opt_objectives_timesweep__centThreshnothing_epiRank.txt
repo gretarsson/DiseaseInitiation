@@ -1,0 +1,11 @@
+# Null optimization best objectives
+# centThresh=nothing  suffix=epiRank  n_null=3
+# summary statistics
+# mean = -91.67418546365916
+# min  = -93.28947368421052
+# max  = -89.78947368421052
+
+# one value per line: best_score_timesweep
+-91.94360902255639
+-89.78947368421052
+-93.28947368421052

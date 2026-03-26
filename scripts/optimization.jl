@@ -9,10 +9,10 @@ using StatsBase; corspearman
 # settings
 const cent_thresh = nothing  # centiloid threshold for amyloid positivity
 const DX = nothing
-const suffix = "epiRank"
+const suffix = "epiRank_GMM_999_K5_Zscore"
 const epicenter_preprocess = true
-const null = true
-const zscore_FDG = false
+const null = false
+const zscore_FDG = true
 
 # blackbox settings
 maxtime = 60  # seconds of maximum runtime
@@ -23,7 +23,17 @@ W = Matrix(CSV.read("data/Schaefer2018_200Parcels_CN.csv", DataFrame; header=fal
 N = size(W,1)
 
 # read subjcet ID of people with epicenters
-epicenter_IDs, epicenters = read_epicenter_subjects_and_intersections("figures/tau_PET_distributions/subjects_with_epicenters_ALL_metrics.txt")
+const K_path_thresh = 5   # example
+epicenter_IDs, epicenters = read_path_epicenter_tsv(
+    "figures/gmm_qc_max_nonQ_pathQ25/nonQ_0p999_pathQ25/subject_path_regions_nonQ_0p999.tsv";
+    K = K_path_thresh
+)
+#length(epicenter_IDs)
+#length(epicenters)
+#epicenters
+# old epicenter
+#epicenter_IDs2, epicenters2 = read_epicenter_subjects_and_intersections("figures/tau_PET_distributions/subjects_with_epicenters_ALL_metrics.txt")
+
 
 # load data
 println("\nloading dataset...")

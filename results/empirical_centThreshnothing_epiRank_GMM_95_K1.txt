@@ -1,0 +1,46 @@
+Empirical baseline summary
+Metric: Function[var"#19#20"{Vector{Int64}}([46]), var"#19#20"{Vector{Int64}}([38, 140]), var"#19#20"{Vector{Int64}}([28]), var"#19#20"{Vector{Int64}}([22, 101]), var"#19#20"{Vector{Int64}}([172]), var"#19#20"{Vector{Int64}}([162, 163]), var"#19#20"{Vector{Int64}}([90, 172]), var"#19#20"{Vector{Int64}}([121]), var"#19#20"{Vector{Int64}}([163]), var"#19#20"{Vector{Int64}}([163]), var"#19#20"{Vector{Int64}}([2]), var"#19#20"{Vector{Int64}}([21, 155]), var"#19#20"{Vector{Int64}}([70]), var"#19#20"{Vector{Int64}}([80, 187]), var"#19#20"{Vector{Int64}}([139]), var"#19#20"{Vector{Int64}}([53]), var"#19#20"{Vector{Int64}}([10]), var"#19#20"{Vector{Int64}}([64]), var"#19#20"{Vector{Int64}}([53, 93]), var"#19#20"{Vector{Int64}}([9]), var"#19#20"{Vector{Int64}}([93]), var"#19#20"{Vector{Int64}}([29]), var"#19#20"{Vector{Int64}}([162, 164]), var"#19#20"{Vector{Int64}}([1]), var"#19#20"{Vector{Int64}}([46, 90]), var"#19#20"{Vector{Int64}}([54]), var"#19#20"{Vector{Int64}}([53]), var"#19#20"{Vector{Int64}}([5, 6])]
+
+Number of subjects: 28
+
+Amyloid PET vs Tau:
+  mean   = -102.53571428571429
+  median = -113.75
+  std    = 63.460534334257055
+
+FDG PET vs Tau:
+  mean   = -92.625
+  median = -105.5
+  std    = 66.4983465402907
+
+Per-subject values (same order as subject_IDs):
+
+ID, amyloid_score, FDG_score
+sub-0031, -147.0, -139.0
+sub-0969, -95.5, -138.0
+sub-4119, -195.0, -190.0
+sub-4148, -155.5, -180.5
+sub-4179, -123.0, -52.0
+sub-4278, -20.5, -8.5
+sub-4349, -149.0, -128.5
+sub-4607, -42.0, -69.0
+sub-4744, -12.0, -5.0
+sub-4765, -17.0, -6.0
+sub-4951, -186.0, -116.0
+sub-5124, -104.5, -35.5
+sub-5126, -81.0, -165.0
+sub-5290, -191.0, -138.5
+sub-6474, -142.0, -66.0
+sub-6512, -31.0, -6.0
+sub-6702, -131.0, -187.0
+sub-06VPJN, -166.0, -183.0
+sub-8JEPGC, -138.0, -58.0
+sub-AWQ63F, -150.0, -17.0
+sub-HOI4E9, -182.0, -173.0
+sub-MA7196, -165.0, -98.0
+sub-MRTRES, -48.0, -17.0
+sub-OS7NQV, -31.0, -113.0
+sub-RXWE3I, -90.5, -153.5
+sub-VPGDBG, -33.0, -24.0
+sub-X0B8SS, -8.0, -8.0
+sub-ZQ3R3J, -36.5, -118.5

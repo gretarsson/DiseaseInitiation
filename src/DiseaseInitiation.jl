@@ -8,6 +8,7 @@ export make_objective_timesweep, make_objective_global, save_local_timesweep_res
 export save_optimization_summary
 export zscore_PET, FDG_matrix_reference
 export read_epicenter_subjects_and_intersections
+export read_path_epicenter_tsv
 
 using DifferentialEquations, LinearAlgebra, Dates, CSV, DataFrames, StatsBase, Distributions
 
@@ -671,7 +672,33 @@ function read_epicenter_subjects_and_intersections(txt_path::AbstractString)
     return subject_ids, roi_intersections
 end
 
+function read_path_epicenter_tsv(tsv_path::AbstractString; K=Inf)
+    df = CSV.read(tsv_path, DataFrame; delim='\t')
 
+    @assert "subject" in names(df)
+    @assert "k_path" in names(df)
+    @assert "path_roi_indices" in names(df)
+
+    # keep only subjects with 0 < k_path ≤ K
+    df = df[(df.k_path .<= K) .& (df.k_path .> 0), :]
+
+    subject_ids = String[]
+    roi_lists = Vector{Vector{Int}}()
+
+    for row in eachrow(df)
+        push!(subject_ids, String(row.subject))
+
+        roi_str = row.path_roi_indices
+        if ismissing(roi_str) || isempty(strip(String(roi_str)))
+            push!(roi_lists, Int[])
+        else
+            rois = parse.(Int, split(String(roi_str), ","))
+            push!(roi_lists, rois)
+        end
+    end
+
+    return subject_ids, roi_lists
+end
 
 end
 

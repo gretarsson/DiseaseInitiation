@@ -1,0 +1,32 @@
+Empirical baseline summary
+Metric: Function[var"#53#54"{Vector{Int64}}([55]), var"#53#54"{Vector{Int64}}([172]), var"#53#54"{Vector{Int64}}([163]), var"#53#54"{Vector{Int64}}([191]), var"#53#54"{Vector{Int64}}([128]), var"#53#54"{Vector{Int64}}([61]), var"#53#54"{Vector{Int64}}([155]), var"#53#54"{Vector{Int64}}([163]), var"#53#54"{Vector{Int64}}([55]), var"#53#54"{Vector{Int64}}([53]), var"#53#54"{Vector{Int64}}([162]), var"#53#54"{Vector{Int64}}([196]), var"#53#54"{Vector{Int64}}([1]), var"#53#54"{Vector{Int64}}([6])]
+
+Number of subjects: 14
+
+Amyloid PET vs Tau:
+  mean   = -81.64285714285714
+  median = -79.5
+  std    = 70.14886055640987
+
+FDG PET vs Tau:
+  mean   = -48.214285714285715
+  median = -14.0
+  std    = 59.090775762548425
+
+Per-subject values (same order as subject_IDs):
+
+ID, amyloid_score, FDG_score
+sub-2367, -11.0, -1.0
+sub-4179, -123.0, -52.0
+sub-4278, -1.0, -3.0
+sub-4422, -88.0, -11.0
+sub-4580, -71.0, -76.0
+sub-4612, -54.0, -113.0
+sub-5124, -198.0, -52.0
+sub-6222, -3.0, -6.0
+sub-6480, -3.0, -3.0
+sub-6757, -20.0, -7.0
+sub-7079, -91.0, -10.0
+sub-3WA6KA, -151.0, -17.0
+sub-MRTRES, -192.0, -183.0
+sub-VPGDBG, -137.0, -141.0

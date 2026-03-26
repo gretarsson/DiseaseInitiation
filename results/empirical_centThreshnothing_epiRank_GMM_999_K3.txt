@@ -1,0 +1,41 @@
+Empirical baseline summary
+Metric: Function[var"#41#42"{Vector{Int64}}([33, 134, 136]), var"#41#42"{Vector{Int64}}([55]), var"#41#42"{Vector{Int64}}([172]), var"#41#42"{Vector{Int64}}([163]), var"#41#42"{Vector{Int64}}([163, 171, 190]), var"#41#42"{Vector{Int64}}([171, 172]), var"#41#42"{Vector{Int64}}([191]), var"#41#42"{Vector{Int64}}([128]), var"#41#42"{Vector{Int64}}([61]), var"#41#42"{Vector{Int64}}([53, 101, 163]), var"#41#42"{Vector{Int64}}([155]), var"#41#42"{Vector{Int64}}([1, 53]), var"#41#42"{Vector{Int64}}([163]), var"#41#42"{Vector{Int64}}([55]), var"#41#42"{Vector{Int64}}([29, 53, 54]), var"#41#42"{Vector{Int64}}([162, 163, 171]), var"#41#42"{Vector{Int64}}([53, 163, 184]), var"#41#42"{Vector{Int64}}([53]), var"#41#42"{Vector{Int64}}([162]), var"#41#42"{Vector{Int64}}([196]), var"#41#42"{Vector{Int64}}([54, 84, 162]), var"#41#42"{Vector{Int64}}([1]), var"#41#42"{Vector{Int64}}([6])]
+
+Number of subjects: 23
+
+Amyloid PET vs Tau:
+  mean   = -84.69565217391305
+  median = -84.66666666666667
+  std    = 56.2042777626669
+
+FDG PET vs Tau:
+  mean   = -54.7536231884058
+  median = -39.0
+  std    = 52.43692385858031
+
+Per-subject values (same order as subject_IDs):
+
+ID, amyloid_score, FDG_score
+sub-1280, -108.66666666666667, -156.66666666666666
+sub-2367, -11.0, -1.0
+sub-4179, -123.0, -52.0
+sub-4278, -1.0, -3.0
+sub-4290, -84.66666666666667, -37.0
+sub-4351, -139.5, -101.5
+sub-4422, -88.0, -11.0
+sub-4580, -71.0, -76.0
+sub-4612, -54.0, -113.0
+sub-4713, -66.33333333333333, -49.666666666666664
+sub-5124, -198.0, -52.0
+sub-5258, -106.5, -72.5
+sub-6222, -3.0, -6.0
+sub-6480, -3.0, -3.0
+sub-6503, -75.0, -31.0
+sub-6640, -94.0, -34.666666666666664
+sub-6731, -59.666666666666664, -62.333333333333336
+sub-6757, -20.0, -7.0
+sub-7079, -91.0, -10.0
+sub-3WA6KA, -151.0, -17.0
+sub-JL19TQ, -70.66666666666667, -39.0
+sub-MRTRES, -192.0, -183.0
+sub-VPGDBG, -137.0, -141.0

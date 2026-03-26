@@ -32,8 +32,15 @@ Tn = 100
 #init_timeseries = disease_initiation_timeseries(L, diagm(vec(mean(amyloid_matrix;dims=1))), diagm(vec(mean(FDG_matrix;dims=1))), ones(N), 1, 1, 1, 0, 0, tspan, Tn)
 for i in axes(amyloid_matrix,1)
     amyloid_M = diagm(amyloid_matrix[i,:])
-    FDG_M = diagm(FDG_matrix[i,:])
-    init_timeseries = disease_initiation_timeseries(L, amyloid_M, FDG_M, ones(N), 1, 0, 1, 0, 0, tspan, Tn)
+    zero_M = diagm(zeros(N))
+    #FDG_M = diagm(FDG_matrix[i,:])
+
+    # positive amyloid impact
+    init_timeseries = disease_initiation_timeseries(L, amyloid_M, zero_M, ones(N), 1, 1, 0, 0, 0, tspan, Tn)[:,end]
+
+    # negative amyloid impact
+    init_timeseries = disease_initiation_timeseries(L, amyloid_M, zero_M, ones(N), 1, -1, 0, 0, 0, tspan, Tn)[:,end]
+
 
     # plot timeseries
     #t = range(tspan[1], tspan[2], length=Tn)
